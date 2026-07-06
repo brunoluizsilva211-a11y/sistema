@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>ACP - Acompanhamento de Produtividade</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+            integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>
+        :root {
+            --purple: #4D148C;
+            --orange: #FF6600;
+            --green: #00A651;
+            --red: #ED1B24;
+            --blue: #3B82F6;
+            --white: #fff;
+            --gray-50: #F8F9FA;
+            --gray-100: #F0F1F3;
+            --gray-200: #E0E2E6;
+            --gray-500: #6B7280;
+            --gray-700: #374151;
+            --gray-800: #1F2937;
+            --radius: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #F3F4F6; color: var(--gray-800); }
+        .login-overlay {
+            position: fixed; inset: 0; background: linear-gradient(135deg, #1a0a2e, #4D148C);
+            display: flex; align-items: center; justify-content: center; z-index: 9999; transition: 0.3s;
+        }
+        .login-overlay.hidden { opacity: 0; pointer-events: none; transform: scale(1.05); }
+        .login-container {
+            background: #fff; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px;
+            box-shadow: 0 20px 25px rgba(0,0,0,0.2);
+        }
+        .login-logo { text-align: center; margin-bottom: 24px; font-size: 42px; font-weight: 900; color: var(--purple); }
+        .login-logo span { color: var(--orange); }
+        .form-group { margin-bottom: 16px; position: relative; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 12px 12px 12px 40px; border: 2px solid var(--gray-200);
+            border-radius: 8px; font-size: 15px;
+        }
+        .form-group i { position: absolute; left: 12px; top: 38px; color: var(--gray-500); }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--orange); color: #fff; }
+        .btn-primary:hover { filter: brightness(1.05); }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .btn-outline { background: transparent; border: 1px solid var(--gray-200); }
+        .btn-danger { background: var(--red); color: #fff; }
+        .btn-success { background: var(--green); color: #fff; }
+        .btn-warning { background: #F59E0B; color: #fff; }
+        .login-error {
+            background: #FEF2F2; color: #991B1B; padding: 10px; border-radius: 6px;
+            margin-bottom: 16px; display: none;
+        }
+        .login-error.show { display: block; }
+        .app-wrapper { display: none; min-height: 100vh; }
+        .app-wrapper.active { display: flex; flex-direction: row; }
+        .sidebar {
+            width: 260px; background: #fff; border-right: 1px solid var(--gray-200);
+            position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100;
+        }
+        .sidebar-header { padding: 20px; border-bottom: 1px solid var(--gray-100); font-size: 24px; font-weight: 900; color: var(--purple); }
+        .sidebar-header span { color: var(--orange); }
+        .sidebar-nav { flex: 1; padding: 10px; overflow-y: auto; }
+        .nav-item {
+            display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px;
+            cursor: pointer; border: none; background: none; width: 100%; text-align: left;
+            font-size: 14px; color: var(--gray-700); transition: 0.2s;
+        }
+        .nav-item.active { background: rgba(77,20,140,0.08); color: var(--purple); font-weight: 700; }
+        .main-content { flex: 1; margin-left: 260px; min-width: 0; }
+        .top-bar {
+            background: #fff; padding: 16px 28px; border-bottom: 1px solid var(--gray-200);
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+        }
+        .content-area { padding: 20px 28px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .card { background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card {
+            background: #fff; padding: 20px; border-radius: 12px; display: flex; align-items: center;
+            gap: 14px; box-shadow: var(--shadow); cursor: pointer; transition: 0.2s; border: 2px solid transparent;
+        }
+        .kpi-card:hover { border-color: var(--purple); transform: translateY(-2px); }
+        .kpi-card.selected { border-color: var(--purple); background: rgba(77,20,140,0.03); }
+        .kpi-icon { width: 48px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .kpi-content { flex: 1; }
+        .kpi-title { font-size: 14px; font-weight: 600; color: var(--gray-500); margin-bottom: 4px; }
+        .kpi-indicators { display: flex; gap: 20px; margin-top: 6px; }
+        .kpi-indicator { display: flex; flex-direction: column; }
+        .kpi-value { font-size: 20px; font-weight: 700; }
+        .kpi-label { font-size: 10px; text-transform: uppercase; color: var(--gray-500); letter-spacing: 0.5px; }
+        .badge { font-size: 11px; padding: 4px 12px; border-radius: 20px; font-weight: 600; display: inline-block; }
+        .badge-info { background: #E8F0FE; color: #1A56DB; }
+        .badge-warning { background: #FEF3C7; color: #92400E; }
+        .badge-success { background: #DEF7EC; color: #03543F; }
+        .badge-purple { background: #F3E8FF; color: #6B21A8; }
+        .badge-danger { background: #FEF2F2; color: #991B1B; }
+        .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid var(--gray-200); background: #fff; margin-top: 12px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 500px; }
+        th { background: var(--gray-50); padding: 10px 14px; text-align: left; font-weight: 700; text-transform: uppercase; font-size: 11px; }
+        td { padding: 10px 14px; border-bottom: 1px solid var(--gray-100); }
+        .timer-display { font-family: monospace; font-weight: 700; color: var(--orange); }
+        .empty-state { text-align: center; padding: 30px; color: #9BA1AC; }
+        .file-input-wrapper { position: relative; overflow: hidden; display: inline-block; }
+        .file-input-wrapper input[type=file] { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: #1F2937; color: #fff; padding: 10px 24px; border-radius: 30px;
+            font-weight: 700; z-index: 9999; animation: fadeInOut 3s forwards;
+        }
+        @keyframes fadeInOut { 0% { opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { opacity: 0; } }
+        .loader {
+            display: inline-block; width: 16px; height: 16px; border: 2px solid #fff;
+            border-radius: 50%; border-top-color: transparent; animation: spin 0.6s linear infinite;
+            margin-right: 8px; vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .filter-bar {
+            display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-end;
+            background: #fff; padding: 12px; border-radius: 8px;
+        }
+        .filter-group { display: flex; flex-direction: column; min-width: 120px; }
+        .filter-group label { font-size: 11px; font-weight: 700; margin-bottom: 4px; color: var(--gray-500); }
+        .filter-group input, .filter-group select { padding: 6px 10px; border: 1px solid var(--gray-200); border-radius: 6px; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); transition: 0.2s; }
+            .main-content { margin-left: 0; }
+            .sidebar.open { transform: translateX(0); }
+            .content-area { padding: 15px; }
+            .top-bar { padding: 12px; }
+        }
+        .btn-icon { background: none; border: none; font-size: 18px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+        .btn-icon:hover { background: var(--gray-100); }
+        .warning-text { color: var(--red); font-weight: bold; }
+        .pedido-tag {
+            display: inline-flex; align-items: center; background: #F0F1F3;
+            padding: 4px 12px 4px 16px; border-radius: 20px; margin: 4px 8px 4px 0; font-size: 13px;
+        }
+        .pedido-tag .remove-pedido { margin-left: 8px; cursor: pointer; color: var(--red); font-weight: bold; background: none; border: none; }
+        .pedido-tag .remove-pedido:hover { color: darkred; }
+        #listaPedidosTemp { display: flex; flex-wrap: wrap; margin-top: 8px; min-height: 30px; padding: 4px 0; }
+        .input-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .input-group input { flex: 1; min-width: 150px; }
+        .fechar-caixa { color: var(--green); font-weight: bold; }
+        .dash-actions { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+        .filtros-container { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 16px; display: none; }
+        .filtros-container.visible { display: block; }
+        .filtros-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+        .filtro-group { display: flex; flex-direction: column; }
+        .filtro-group label { font-size: 11px; font-weight: 600; color: var(--gray-500); }
+        .filtro-group input, .filtro-group select { padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 4px; font-size: 12px; width: 100px; }
+        .filtro-group input[type="text"] { width: 150px; }
+        .progress-text { margin-left: 10px; font-size: 13px; color: var(--gray-700); }
+    </style>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-container">
+        <div class="login-logo">ACP<span>.</span></div>
+        <div style="text-align:center;color:var(--gray-500);margin-bottom:24px;">Acompanhamento de Produtividade</div>
+        <div class="login-error" id="loginError">Usuário ou senha incorretos.</div>
+        <form id="loginForm">
+            <div class="form-group"><i class="fa-solid fa-user"></i><input type="text" id="loginUser" placeholder="Usuário" required></div>
+            <div class="form-group"><i class="fa-solid fa-lock"></i><input type="password" id="loginPass" placeholder="Senha" required></div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">Entrar</button>
+        </form>
+    </div>
+</div>
+
+<div class="app-wrapper" id="appWrapper">
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">ACP<span>.</span></div>
+        <nav class="sidebar-nav" id="sidebarNav">
+            <button class="nav-item" data-tab="baseS2L"><i class="fa-solid fa-upload"></i> Base S2L</button>
+            <button class="nav-item active" data-tab="lancamento"><i class="fa-solid fa-barcode"></i> Lançamento</button>
+            <button class="nav-item" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</button>
+            <button class="nav-item" data-tab="produtividade"><i class="fa-solid fa-trophy"></i> Produtividade</button>
+            <button class="nav-item admin-only" data-tab="configuracoes" style="display:none;"><i class="fa-solid fa-gear"></i> Configurações</button>
+            <button class="nav-item admin-only" data-tab="usuarios" style="display:none;"><i class="fa-solid fa-users"></i> Usuários</button>
+        </nav>
+        <div style="padding:16px;border-top:1px solid var(--gray-100);display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;background:var(--purple);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;" id="sidebarAvatar">A</div>
+            <div style="flex:1">
+                <div id="sidebarUserName" style="font-weight:600;">Admin</div>
+                <div style="font-size:10px;color:var(--gray-500);" id="sidebarUserRole">Administrador</div>
+            </div>
+            <button id="btnLogout" style="background:none;border:none;color:var(--gray-500);font-size:18px;cursor:pointer;"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+    </aside>
+    <main class="main-content">
+        <div class="top-bar">
+            <div>
+                <div class="page-title" id="pageTitle" style="font-weight:700;font-size:20px;"></div>
+                <div id="breadcrumb" style="font-size:12px;color:var(--gray-500);"></div>
+            </div>
+            <div style="display:flex;gap:15px;align-items:center;"><span><i class="fa-regular fa-calendar"></i> <span id="liveDateStr"></span></span><span><i class="fa-regular fa-clock"></i> <span id="liveTimeStr"></span></span></div>
+        </div>
+        <div class="content-area">
+            <!-- BASE S2L -->
+            <div class="tab-content" id="tabBaseS2L">
+                <div class="card">
+                    <h3>📂 Importar Planilha - Base S2L</h3>
+                    <p style="font-size:13px;color:var(--gray-500);">Selecione o arquivo .xlsx (referência de 1 mês). O sistema identifica pedidos existentes e atualiza status <strong>respeitando separações ativas</strong>.</p>
+                    <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+                        <div class="file-input-wrapper">
+                            <button class="btn btn-primary">📁 Escolher arquivo</button>
+                            <input type="file" id="inputFileExcel" accept=".xlsx, .xls">
+                        </div>
+                        <span id="fileNameDisplay" style="color:var(--gray-500);">Nenhum arquivo selecionado</span>
+                        <button class="btn btn-outline" id="btnLimparBaseToda">🗑️ Limpar base</button>
+                    </div>
+                    <div id="importProgress" style="display:none; margin-top:12px; align-items:center;">
+                        <span class="loader"></span> <span id="importProgressText">Processando...</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3>📋 Base S2L</h3><span class="badge badge-info" id="countBaseTotal">0</span></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Pedido</th><th>Produto</th><th>Qtd</th><th>Status</th><th>Colaborador</th><th>Dt. Alteração</th><th>Criação</th></tr></thead>
+                            <tbody id="tbodyBasePedidos"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LANÇAMENTO -->
+            <div class="tab-content active" id="tabLancamento">
+                <div class="card">
+                    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                        <div style="flex:1; min-width:180px;">
+                            <label>👤 Colaborador</label>
+                            <input id="inputColaborador" list="colaboradoresList">
+                            <datalist id="colaboradoresList"></datalist>
+                        </div>
+                        <div style="flex:0.8;">
+                            <label>Tipo</label>
+                            <select id="inputTipoColaborador">
+                                <option value="Separador de Chão">Separador de Chão</option>
+                                <option value="Empilhadeirista">Empilhadeirista</option>
+                            </select>
+                        </div>
+                        <div style="flex:0.8;">
+                            <label>Turno</label>
+                            <select id="inputTurno">
+                                <option value="Turno 1">Turno 1</option>
+                                <option value="Turno 2">Turno 2</option>
+                                <option value="ADM">ADM</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" id="btnIniciarColeta" style="margin-bottom:0;">Iniciar</button>
+                    </div>
+                    <div style="margin-top:16px;">
+                        <label>📦 Pedido (digite e pressione Enter para adicionar)</label>
+                        <div class="input-group">
+                            <input id="inputPedido" placeholder="Ex: 8045583111" style="flex:1; padding:8px; border:1px solid var(--gray-200); border-radius:6px;">
+                            <button class="btn btn-sm btn-outline" id="btnAddPedido">➕ Adicionar</button>
+                            <button class="btn btn-sm btn-danger" id="btnLimparLista">🗑️ Limpar lista</button>
+                        </div>
+                        <div id="listaPedidosTemp"></div>
+                        <small>Os pedidos adicionados serão iniciados juntos para o colaborador selecionado.</small>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3>⏳ Em Separação</h3><span class="badge badge-warning" id="countEmAndamento">0</span></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos em Separação</th><th>Início (primeiro)</th><th>Tempo decorrido</th><th>Ações</th></tr></thead>
+                            <tbody id="tbodyEmAndamento"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DASHBOARD -->
+            <div class="tab-content" id="tabDashboard">
+                <div class="filter-bar" id="dashboardFilters">
+                    <div class="filter-group"><label>Data (finalização)</label><input type="date" id="dashDataFiltro"></div>
+                    <div class="filter-group"><label>Colaborador</label><input type="text" id="dashColabFiltro" placeholder="Nome"></div>
+                    <div class="filter-group"><label>Turno</label><select id="dashTurnoFiltro"><option value="">Todos</option><option>Turno 1</option><option>Turno 2</option><option>ADM</option></select></div>
+                    <div class="filter-group"><label>Tipo</label><select id="dashTipoFiltro"><option value="">Todos</option><option>Separador de Chão</option><option>Empilhadeirista</option></select></div>
+                    <button class="btn btn-sm btn-outline" id="limparFiltrosDash">Limpar</button>
+                    <div style="margin-left:auto; display:flex; gap:8px;">
+                        <button class="btn btn-sm btn-primary" id="exportDashExcel"><i class="fa-regular fa-file-excel"></i> Excel</button>
+                        <button class="btn btn-sm btn-primary" id="exportDashPDF"><i class="fa-regular fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>
+                <div class="kpi-grid" id="kpiGrid">
+                    <div class="kpi-card" data-filtro="em_aberto">
+                        <div class="kpi-icon" style="background:#3B82F620;color:var(--blue);"><i class="fa-solid fa-folder-open"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Em Aberto</div>
+                            <div class="kpi-indicators">
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiEmAbertoPedidos">0</span><span class="kpi-label">PEDIDOS</span></div>
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiEmAbertoPecas">0</span><span class="kpi-label">PEÇAS</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card" data-filtro="em_andamento">
+                        <div class="kpi-icon" style="background:#FF660020;color:var(--orange);"><i class="fa-solid fa-spinner"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Em Separação</div>
+                            <div class="kpi-indicators"><div class="kpi-indicator"><span class="kpi-value" id="kpiEmAndamento">0</span><span class="kpi-label">PEDIDOS</span></div></div>
+                        </div>
+                    </div>
+                    <div class="kpi-card" data-filtro="aguardando_coleta">
+                        <div class="kpi-icon" style="background:#00A65120;color:var(--green);"><i class="fa-solid fa-box"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Aguardando Coleta</div>
+                            <div class="kpi-indicators"><div class="kpi-indicator"><span class="kpi-value" id="kpiAguardandoColeta">0</span><span class="kpi-label">PEDIDOS</span></div></div>
+                        </div>
+                    </div>
+                    <div class="kpi-card" data-filtro="separado_aguardando_status">
+                        <div class="kpi-icon" style="background:#F3E8FF;color:var(--purple);"><i class="fa-solid fa-clock"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Aguardando PDV</div>
+                            <div class="kpi-indicators"><div class="kpi-indicator"><span class="kpi-value" id="kpiAguardandoPdv">0</span><span class="kpi-label">PEDIDOS</span></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="dashboardTableContainer" style="display:none;">
+                    <div class="card">
+                        <div class="dash-actions" id="dashActions"></div>
+                        <div id="filtrosEmAberto" class="filtros-container">
+                            <div class="filtros-row">
+                                <div class="filtro-group"><label>Pedido</label><input type="text" id="filtroPedido" placeholder="Buscar..."></div>
+                                <div class="filtro-group"><label>Falta (min)</label><input type="number" id="filtroFaltaMin" placeholder="0"></div>
+                                <div class="filtro-group"><label>Falta (max)</label><input type="number" id="filtroFaltaMax" placeholder="9999"></div>
+                                <button class="btn btn-sm btn-primary" id="btnAplicarFiltros">Aplicar</button>
+                                <button class="btn btn-sm btn-outline" id="btnLimparFiltros">Limpar</button>
+                            </div>
+                        </div>
+                        <h3 id="dashboardTableTitle"></h3>
+                        <div class="table-wrapper">
+                            <table><thead id="dashboardTableHead"></thead><tbody id="dashboardTableBody"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PRODUTIVIDADE + HISTÓRICO -->
+            <div class="tab-content" id="tabProdutividade">
+                <div class="filter-bar">
+                    <div class="filter-group"><label>Data</label><input type="date" id="prodDataFiltro"></div>
+                    <div class="filter-group"><label>Colaborador</label><input type="text" id="prodColabFiltro" placeholder="Nome"></div>
+                    <div class="filter-group"><label>Turno</label><select id="prodTurnoFiltro"><option value="">Todos</option><option>Turno 1</option><option>Turno 2</option><option>ADM</option></select></div>
+                    <div class="filter-group"><label>Tipo</label><select id="prodTipoFiltro"><option value="">Todos</option><option>Separador de Chão</option><option>Empilhadeirista</option></select></div>
+                    <button class="btn btn-sm btn-outline" id="limparFiltrosProd">Limpar</button>
+                    <div style="margin-left:auto; gap:8px; display:flex;">
+                        <button class="btn btn-sm btn-primary" id="exportProdExcel"><i class="fa-regular fa-file-excel"></i> Excel</button>
+                        <button class="btn btn-sm btn-primary" id="exportProdPDF"><i class="fa-regular fa-file-pdf"></i> PDF</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3>📊 Produtividade Diária</h3><span id="prodMetaInfo" style="font-size:12px;color:var(--gray-500);"></span></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos</th><th>Peças</th><th>Meta</th><th>Atingimento</th><th>Status</th></tr></thead>
+                            <tbody id="tbodyProdutividade"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3>📅 Histórico Diário</h3><div><input type="date" id="historicoData" style="padding:6px;"><button class="btn btn-sm btn-primary" id="btnCarregarHistorico">Carregar</button></div></div>
+                    <div id="historicoResumo" style="margin-bottom:10px;"></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos</th><th>Peças</th><th>Meta</th><th>Atingimento</th><th>Meta Batida?</th></tr></thead>
+                            <tbody id="tbodyHistorico"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONFIGURAÇÕES (admin) -->
+            <div class="tab-content" id="tabConfiguracoes">
+                <div class="card"><h3>⚙️ Metas de Produtividade</h3>
+                    <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                        <div><label>Meta Separador de Chão (peças)</label><input type="number" id="metaSeparador" value="300" step="10" style="width:150px;"></div>
+                        <div><label>Meta Empilhadeirista (pedidos)</label><input type="number" id="metaEmpilhadeirista" value="10" step="1" style="width:150px;"></div>
+                        <button class="btn btn-primary" id="btnSalvarMetas">Salvar Metas</button>
+                    </div>
+                    <small>Metas aplicadas na produtividade diária.</small></div>
+            </div>
+
+            <!-- USUÁRIOS (admin) -->
+            <div class="tab-content" id="tabUsuarios">
+                <div class="card">
+                    <h3>👥 Gerenciar Usuários</h3>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                        <div><label>Nome</label><input id="inputNovoNome" placeholder="Nome completo"></div>
+                        <div><label>Usuário (login)</label><input id="inputNovoUsuario" placeholder="Usuário"></div>
+                        <div><label>Senha</label><input type="password" id="inputNovaSenha" placeholder="Senha"></div>
+                        <div><label>Perfil</label><select id="inputNovoRole"><option value="padrao">Padrão</option><option value="admin">Admin</option></select></div>
+                        <button class="btn btn-primary" id="btnCriarUsuario" style="margin-bottom:0;">Criar</button>
+                    </div>
+                    <div class="table-wrapper" style="margin-top:16px;">
+                        <table>
+                            <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Criado em</th><th>Ações</th></tr></thead>
+                            <tbody id="tbodyUsuarios"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    (function () {
+        const STORAGE_KEY = 'acp_v3_data';
+        let appData = loadData();
+        let currentUser = null;
+        let currentTab = 'lancamento';
+        let timerInterval = null;
+        let dashboardFiltroAtivo = null;
+        let metas = { separador: 300, empilhadeirista: 10 };
+        let listaPedidosTemp = [];
+
+        function getDefaultData() {
+            return {
+                users: [{ nome: 'Administrador', username: 'Admin', password: '20362881', role: 'admin', createdAt: new Date().toISOString() }],
+                pedidos: [],
+                colaboradores: [],
+                config: { metas: { separador: 300, empilhadeirista: 10 } },
+                nextId: 1
+            };
+        }
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    data.users = data.users || [];
+                    data.users.forEach(u => { if (!u.nome) u.nome = u.username; });
+                    data.pedidos = data.pedidos || [];
+                    data.colaboradores = data.colaboradores || [];
+                    data.nextId = data.nextId || 1;
+                    data.config = data.config || { metas: { separador: 300, empilhadeirista: 10 } };
+                    metas.separador = data.config.metas?.separador || 300;
+                    metas.empilhadeirista = data.config.metas?.empilhadeirista || 10;
+                    data.pedidos.forEach(p => {
+                        if (!p.status) p.status = 'em_aberto';
+                        if (!p.sku) p.sku = '';
+                        if (!p.dtAlteracao) p.dtAlteracao = '';
+                        if (!p.tipoColaborador) p.tipoColaborador = 'Separador de Chão';
+                        if (!p.turno) p.turno = 'Turno 1';
+                        if (!p.dataCriacao) p.dataCriacao = null;
+                        if (!p.dataFim) p.dataFim = null;
+                        if (p.quantidadeTotalPedido === undefined) p.quantidadeTotalPedido = p.quantidadePedido || 0;
+                        if (p.quantidadeFaltante === undefined) p.quantidadeFaltante = 0;
+                    });
+                    if (!data.users.some(u => u.role === 'admin')) {
+                        data.users.push({ nome: 'Administrador', username: 'Admin', password: '20362881', role: 'admin', createdAt: new Date().toISOString() });
+                    }
+                    return data;
+                }
+            } catch (e) { console.error(e); }
+            return getDefaultData();
+        }
+
+        function saveData() {
+            appData.config.metas = metas;
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); } catch (e) { showToast('Erro ao salvar dados. O armazenamento pode estar cheio.', true); console.error(e); }
+        }
+
+        function mapStatusToApp(statusExcel) {
+            if (!statusExcel) return 'em_aberto';
+            const upper = String(statusExcel).toUpperCase().trim();
+            if (upper.includes('AGUARDANDO COLETA')) return 'aguardando_coleta';
+            if (upper.includes('SEPARADO AGUARDANDO STATUS') || upper.includes('AGUARDANDO STATUS')) return 'separado_aguardando_status';
+            if (upper.includes('EM ANDAMENTO') || upper.includes('EM SEPARAÇÃO')) return 'em_andamento';
+            return 'em_aberto';
+        }
+
+        function parseDataCriacao(value) {
+            if (!value) return null;
+            if (value instanceof Date && !isNaN(value)) return value.toISOString();
+            if (typeof value === 'number' && !isNaN(value) && value > 30000) {
+                const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+                if (!isNaN(date)) return date.toISOString();
+            }
+            const str = String(value).trim();
+            if (str === '') return null;
+            if (/^\d{4,}(\.\d+)?$/.test(str)) {
+                const num = parseFloat(str);
+                if (!isNaN(num) && num > 30000) {
+                    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+                    if (!isNaN(date)) return date.toISOString();
+                }
+            }
+            const regexBrHora = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+            const matchHora = str.match(regexBrHora);
+            if (matchHora) {
+                const dia = parseInt(matchHora[1], 10), mes = parseInt(matchHora[2], 10) - 1, ano = parseInt(matchHora[3], 10);
+                const hora = parseInt(matchHora[4], 10), minuto = parseInt(matchHora[5], 10), segundo = matchHora[6] ? parseInt(matchHora[6], 10) : 0;
+                const parsed = new Date(ano, mes, dia, hora, minuto, segundo);
+                if (!isNaN(parsed)) return parsed.toISOString();
+            }
+            const regexBrData = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+            const matchData = str.match(regexBrData);
+            if (matchData) {
+                const dia = parseInt(matchData[1], 10), mes = parseInt(matchData[2], 10) - 1, ano = parseInt(matchData[3], 10);
+                const parsed = new Date(ano, mes, dia);
+                if (!isNaN(parsed)) return parsed.toISOString();
+            }
+            const regexIso = /^(\d{4})-(\d{2})-(\d{2})(?:T|\s)?(\d{2})?:?(\d{2})?:?(\d{2})?/;
+            const matchIso = str.match(regexIso);
+            if (matchIso) {
+                const ano = parseInt(matchIso[1], 10), mes = parseInt(matchIso[2], 10) - 1, dia = parseInt(matchIso[3], 10);
+                const hora = matchIso[4] ? parseInt(matchIso[4], 10) : 0, minuto = matchIso[5] ? parseInt(matchIso[5], 10) : 0, segundo = matchIso[6] ? parseInt(matchIso[6], 10) : 0;
+                const parsed = new Date(ano, mes, dia, hora, minuto, segundo);
+                if (!isNaN(parsed)) return parsed.toISOString();
+            }
+            const d = new Date(str);
+            if (!isNaN(d)) return d.toISOString();
+            return null;
+        }
+
+        function formatTempoAberto(dataCriacaoISO) {
+            if (!dataCriacaoISO) return '--';
+            const agora = new Date(), criacao = new Date(dataCriacaoISO);
+            if (isNaN(criacao)) return '--';
+            const diffMs = agora - criacao;
+            if (diffMs < 0) return '--';
+            const totalMin = Math.floor(diffMs / 60000);
+            const dias = Math.floor(totalMin / 1440), horas = Math.floor((totalMin % 1440) / 60), mins = totalMin % 60;
+            if (dias > 0) return `${dias}d ${horas}h`;
+            if (horas > 0) return `${horas}h ${mins}min`;
+            return `${mins}min`;
+        }
+
+        function calcularDiasAberto(dataCriacaoISO) {
+            if (!dataCriacaoISO) return 0;
+            const agora = new Date(), criacao = new Date(dataCriacaoISO);
+            if (isNaN(criacao)) return 0;
+            const diffMs = agora - criacao;
+            if (diffMs < 0) return 0;
+            return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        }
+
+        function nowISO() { return new Date().toISOString(); }
+
+        function showToast(msg, isError = false) {
+            const t = document.createElement('div');
+            t.className = 'toast';
+            t.textContent = msg;
+            if (isError) t.style.background = '#ED1B24';
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        function formatDateTime(iso) { return iso ? new Date(iso).toLocaleString('pt-BR') : '--'; }
+
+        function formatTime(sec) {
+            if (!sec && sec !== 0) return '--';
+            const s = Math.abs(Math.floor(sec));
+            return `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        }
+
+        function updateLiveTime() {
+            const now = new Date();
+            document.getElementById('liveDateStr').innerHTML = now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+            document.getElementById('liveTimeStr').innerHTML = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function renderListaPedidos() {
+            const container = document.getElementById('listaPedidosTemp');
+            if (listaPedidosTemp.length === 0) {
+                container.innerHTML = '<span style="color:var(--gray-500); font-size:13px;">Nenhum pedido adicionado.</span>';
+                return;
+            }
+            container.innerHTML = listaPedidosTemp.map((p, idx) => `<span class="pedido-tag">${escapeHtml(p)} <button class="remove-pedido" data-index="${idx}">✕</button></span>`).join('');
+            container.querySelectorAll('.remove-pedido').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const idx = parseInt(this.dataset.index);
+                    listaPedidosTemp.splice(idx, 1);
+                    renderListaPedidos();
+                });
+            });
+        }
+
+        function verificarDuplicidade(pedido) {
+            const existente = appData.pedidos.find(p => p.pedido === pedido);
+            if (existente) {
+                const statusMap = { 'em_aberto': 'Em Aberto', 'em_andamento': 'Em Separação', 'aguardando_coleta': 'Produção', 'separado_aguardando_status': 'Aguardando Status PDV' };
+                const statusLabel = statusMap[existente.status] || existente.status;
+                return confirm(`O pedido ${pedido} já existe no sistema com status: ${statusLabel}. Deseja lançar novamente?`);
+            }
+            return true;
+        }
+
+        function adicionarPedidoLista(pedido) {
+            const p = pedido.trim();
+            if (!p) return false;
+            if (listaPedidosTemp.includes(p)) { showToast('Pedido já está na lista', true); return false; }
+            if (!verificarDuplicidade(p)) return false;
+            listaPedidosTemp.push(p);
+            renderListaPedidos();
+            document.getElementById('inputPedido').value = '';
+            document.getElementById('inputPedido').focus();
+            return true;
+        }
+
+        function limparLista() { listaPedidosTemp = []; renderListaPedidos(); }
+
+        document.getElementById('btnAddPedido').addEventListener('click', function () {
+            const input = document.getElementById('inputPedido');
+            adicionarPedidoLista(input.value);
+        });
+        document.getElementById('inputPedido').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); adicionarPedidoLista(this.value); }
+        });
+        document.getElementById('btnLimparLista').addEventListener('click', limparLista);
+
+        document.getElementById('inputFileExcel').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (typeof XLSX === 'undefined') { showToast('Biblioteca de leitura de Excel não carregada. Recarregue a página.', true); return; }
+            document.getElementById('fileNameDisplay').textContent = file.name;
+            const progressDiv = document.getElementById('importProgress');
+            const progressText = document.getElementById('importProgressText');
+            progressDiv.style.display = 'flex';
+            progressText.textContent = 'Lendo arquivo...';
+            const reader = new FileReader();
+            reader.onerror = function () { progressDiv.style.display = 'none'; showToast('Erro ao ler o arquivo. Verifique se é um Excel válido.', true); };
+            reader.onload = function (evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    if (!workbook.SheetNames.length) throw new Error('Planilha sem abas.');
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    if (!json.length) throw new Error('Planilha vazia.');
+                    progressText.textContent = 'Processando dados...';
+                    processExcelDataAsync(json, progressText, () => { progressDiv.style.display = 'none'; });
+                } catch (err) {
+                    progressDiv.style.display = 'none';
+                    showToast('Erro ao ler arquivo: ' + (err.message || 'Formato inválido'), true);
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            e.target.value = '';
+        });
+
+        function processExcelDataAsync(rows, progressTextEl, onComplete) {
+            if (!rows.length) { onComplete(); return; }
+            const headerRow = rows[0];
+            const headers = headerRow.map(c => String(c).toUpperCase().trim());
+            const findCol = (names) => { for (let i = 0; i < headers.length; i++) { for (let n of names) { if (headers[i].includes(n)) return i; } } return -1; };
+            const colMap = {
+                pedido: findCol(['PEDIDO']),
+                orgQtd: findCol(['ORG QTD', 'QUANTIDADE ORIGINAL', 'QTD ORIGINAL']),
+                qtd: findCol(['QTD', 'QTD SEPARADA']),
+                dataCriacao: findCol(['DATA CRIAÇÃO', 'CRIAÇÃO', 'DATA DE CRIAÇÃO']),
+                status: findCol(['STATUS'])
+            };
+            if (colMap.pedido === -1) colMap.pedido = 1;
+            if (colMap.orgQtd === -1) colMap.orgQtd = 6;
+            if (colMap.qtd === -1) colMap.qtd = 7;
+            if (colMap.dataCriacao === -1) colMap.dataCriacao = 0;
+            if (colMap.status === -1) colMap.status = 8;
+
+            const mapPedido = new Map();
+            const startRow = headers.some(h => h.includes('PEDIDO')) ? 1 : 0;
+            const totalRows = rows.length - startRow;
+            const CHUNK_SIZE = 1000;
+
+            function processChunk(startIdx) {
+                const endIdx = Math.min(startIdx + CHUNK_SIZE, rows.length);
+                for (let i = startIdx; i < endIdx; i++) {
+                    const row = rows[i];
+                    if (!row || row.length === 0) continue;
+                    const pedido = String(row[colMap.pedido] || '').trim();
+                    if (!pedido) continue;
+                    const orgQtd = parseFloat(row[colMap.orgQtd]) || 0;
+                    const qtd = parseFloat(row[colMap.qtd]) || 0;
+                    const dataCriacaoRaw = row[colMap.dataCriacao];
+                    const statusRaw = String(row[colMap.status] || '').toUpperCase();
+                    if (!mapPedido.has(pedido)) mapPedido.set(pedido, { totalOrg: 0, totalFalta: 0, dataCriacao: null, statusPlanilha: statusRaw });
+                    const item = mapPedido.get(pedido);
+                    item.totalOrg += orgQtd;
+                    if (qtd < orgQtd) item.totalFalta += (orgQtd - qtd);
+                    const parsed = parseDataCriacao(dataCriacaoRaw);
+                    if (parsed) { if (!item.dataCriacao || new Date(parsed) < new Date(item.dataCriacao)) item.dataCriacao = parsed; }
+                }
+                if (progressTextEl) progressTextEl.textContent = `Processando ${Math.min(endIdx, totalRows)} de ${totalRows} linhas...`;
+                if (endIdx < rows.length) setTimeout(() => processChunk(endIdx), 0);
+                else setTimeout(() => applyMapToBase(mapPedido, progressTextEl, onComplete), 0);
+            }
+            processChunk(startRow);
+        }
+
+        function applyMapToBase(mapPedido, progressTextEl, onComplete) {
+            if (progressTextEl) progressTextEl.textContent = 'Atualizando base de dados...';
+            let importados = 0, atualizados = 0;
+            for (const [pedido, dados] of mapPedido) {
+                let existente = appData.pedidos.find(p => p.pedido === pedido);
+                const isActive = existente && (existente.status === 'em_andamento' || existente.status === 'separado_aguardando_status');
+                if (existente) {
+                    existente.quantidadeTotalPedido = dados.totalOrg;
+                    existente.quantidadeFaltante = dados.totalFalta;
+                    if (dados.dataCriacao && (!existente.dataCriacao || new Date(dados.dataCriacao) < new Date(existente.dataCriacao))) existente.dataCriacao = dados.dataCriacao;
+                    if (!isActive) {
+                        const statusMapped = mapStatusToApp(dados.statusPlanilha);
+                        if (statusMapped) existente.status = statusMapped;
+                    }
+                    atualizados++;
+                } else {
+                    const statusMapped = mapStatusToApp(dados.statusPlanilha) || 'em_aberto';
+                    let dataFimImport = null;
+                    if (statusMapped === 'aguardando_coleta') dataFimImport = dados.dataCriacao;
+                    const novo = {
+                        id: appData.nextId++, pedido: pedido, sku: '', quantidadePedido: dados.totalOrg,
+                        quantidadeTotalPedido: dados.totalOrg, quantidadeFaltante: dados.totalFalta,
+                        colaborador: null, tipoColaborador: 'Separador de Chão', turno: 'Turno 1',
+                        dataInicio: null, dataFim: dataFimImport, status: statusMapped, dtAlteracao: '',
+                        dataCriacao: dados.dataCriacao, tempoTotalSegundos: null
+                    };
+                    appData.pedidos.push(novo);
+                    importados++;
+                }
+            }
+            saveData();
+            showToast(`✅ ${importados} novos, ${atualizados} atualizados (separações ativas preservadas).`);
+            fullRender();
+            if (onComplete) onComplete();
+        }
+
+        document.getElementById('btnLimparBaseToda').onclick = () => {
+            if (confirm('Limpar TODOS os pedidos?')) { appData.pedidos = []; saveData(); fullRender(); }
+        };
+
+        function finalizarPedido(pedidoObj) {
+            if (!pedidoObj || pedidoObj.status !== 'em_andamento') return false;
+            const pedidoNumero = pedidoObj.pedido;
+            const outro = appData.pedidos.find(p => p.pedido === pedidoNumero && p.id !== pedidoObj.id);
+            if (outro) return false;
+            pedidoObj.status = 'separado_aguardando_status';
+            pedidoObj.dataFim = nowISO();
+            pedidoObj.quantidadeColetada = pedidoObj.quantidadeTotalPedido;
+            pedidoObj.tempoTotalSegundos = Math.floor((new Date(pedidoObj.dataFim) - new Date(pedidoObj.dataInicio)) / 1000);
+            return true;
+        }
+
+        document.getElementById('btnIniciarColeta').onclick = function () {
+            const colab = document.getElementById('inputColaborador').value.trim();
+            const tipo = document.getElementById('inputTipoColaborador').value;
+            const turno = document.getElementById('inputTurno').value;
+            if (!colab) return showToast('Informe o colaborador', true);
+            if (listaPedidosTemp.length === 0) return showToast('Adicione pelo menos um pedido à lista', true);
+
+            for (let pedido of listaPedidosTemp) {
+                const existente = appData.pedidos.find(p => p.pedido === pedido);
+                if (existente) {
+                    if (existente.status !== 'em_aberto' && existente.status !== 'separado_aguardando_status') {
+                        const statusMap = { 'em_andamento': 'Em Separação', 'aguardando_coleta': 'Produção' };
+                        const statusLabel = statusMap[existente.status] || existente.status;
+                        showToast(`Pedido ${pedido} está em ${statusLabel} e não pode ser iniciado.`, true);
+                        return;
+                    }
+                }
+            }
+
+            const pedidosAtivos = appData.pedidos.filter(p => p.status === 'em_andamento' && p.colaborador === colab);
+            if (pedidosAtivos.length > 0) {
+                if (!confirm(`O colaborador ${colab} já possui ${pedidosAtivos.length} pedido(s) em andamento. Deseja finalizar os pedidos atuais e iniciar os novos?`)) return;
+                let finalizados = 0;
+                pedidosAtivos.forEach(p => { if (finalizarPedido(p)) finalizados++; });
+                if (finalizados > 0) showToast(`${finalizados} pedido(s) finalizado(s) e movido(s) para Aguardando Status PDV.`);
+            }
+
+            let iniciados = 0, erros = 0;
+            listaPedidosTemp.forEach(pedidoNum => {
+                const existente = appData.pedidos.find(p => p.pedido === pedidoNum);
+                if (existente && existente.status !== 'em_aberto' && existente.status !== 'separado_aguardando_status') {
+                    showToast(`Pedido ${pedidoNum} não pode ser iniciado (status: ${existente.status})`, true);
+                    erros++;
+                    return;
+                }
+                let base = appData.pedidos.find(p => p.pedido === pedidoNum && (p.status === 'em_aberto' || p.status === 'separado_aguardando_status'));
+                if (!base) {
+                    base = {
+                        id: appData.nextId++, pedido: pedidoNum, sku: '', quantidadePedido: 1,
+                        quantidadeTotalPedido: 1, quantidadeFaltante: 0, status: 'em_aberto',
+                        dtAlteracao: '', dataCriacao: null, quantidadeColetada: null,
+                        tempoTotalSegundos: null, colaborador: null, tipoColaborador: 'Separador de Chão',
+                        turno: 'Turno 1', dataInicio: null, dataFim: null
+                    };
+                    appData.pedidos.push(base);
+                } else {
+                    if (base.status === 'separado_aguardando_status') {
+                        base.dataFim = null; base.tempoTotalSegundos = null; base.quantidadeColetada = null;
+                    }
+                }
+                base.colaborador = colab; base.tipoColaborador = tipo; base.turno = turno;
+                base.dataInicio = nowISO(); base.status = 'em_andamento';
+                if (!appData.colaboradores.includes(colab)) appData.colaboradores.push(colab);
+                iniciados++;
+            });
+
+            if (iniciados > 0) {
+                saveData();
+                showToast(`${iniciados} pedido(s) iniciado(s) para ${colab}.`);
+                limparLista();
+                fullRender();
+            } else if (erros > 0) {
+                showToast(`Nenhum pedido foi iniciado. Verifique os erros.`, true);
+            }
+        };
+
+        function fullRender() {
+            renderBase();
+            renderLancamento();
+            renderDashboard();
+            renderProdutividade();
+            const datalist = document.getElementById('colaboradoresList');
+            datalist.innerHTML = appData.colaboradores.map(c => `<option value="${escapeHtml(c)}">`).join('');
+        }
+
+        function renderLancamento() {
+            const andamento = appData.pedidos.filter(p => p.status === 'em_andamento');
+            document.getElementById('countEmAndamento').innerText = andamento.length;
+            const tbody = document.getElementById('tbodyEmAndamento');
+            if (andamento.length === 0) {
+                tbody.innerHTML = '<tr class="empty-state"><td colspan="7">Nenhum pedido em separação.</td></tr>';
+                return;
+            }
+            const grupos = new Map();
+            andamento.forEach(p => {
+                const key = p.colaborador;
+                if (!grupos.has(key)) grupos.set(key, { colaborador: p.colaborador, tipo: p.tipoColaborador, turno: p.turno, pedidos: [], dataInicioMaisAntiga: p.dataInicio });
+                const grupo = grupos.get(key);
+                grupo.pedidos.push(p.pedido);
+                if (p.dataInicio < grupo.dataInicioMaisAntiga) grupo.dataInicioMaisAntiga = p.dataInicio;
+            });
+            let html = '';
+            grupos.forEach((grupo, colab) => {
+                const tempo = Math.floor((new Date() - new Date(grupo.dataInicioMaisAntiga)) / 1000);
+                const listaPedidos = grupo.pedidos.join(', ');
+                html += `<tr>
+                    <td><strong>${escapeHtml(colab)}</strong></td>
+                    <td>${escapeHtml(grupo.tipo)}</td>
+                    <td>${escapeHtml(grupo.turno)}</td>
+                    <td>${escapeHtml(listaPedidos)}</td>
+                    <td>${formatDateTime(grupo.dataInicioMaisAntiga)}</td>
+                    <td class="timer-display" data-colab="${escapeHtml(colab)}">${formatTime(tempo)}</td>
+                    <td><button class="btn btn-sm btn-success finalizar-grupo-btn" data-colab="${escapeHtml(colab)}">Finalizar todos</button></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+            document.querySelectorAll('.finalizar-grupo-btn').forEach(btn => {
+                btn.removeEventListener('click', finalizarGrupoHandler);
+                btn.addEventListener('click', finalizarGrupoHandler);
+            });
+        }
+
+        function finalizarGrupoHandler(e) {
+            const colab = this.dataset.colab;
+            const pedidosDoColab = appData.pedidos.filter(p => p.status === 'em_andamento' && p.colaborador === colab);
+            if (pedidosDoColab.length === 0) return;
+            if (!confirm(`Finalizar todos os ${pedidosDoColab.length} pedido(s) de ${colab}?`)) return;
+            let finalizados = 0;
+            pedidosDoColab.forEach(p => { if (finalizarPedido(p)) finalizados++; });
+            if (finalizados > 0) {
+                saveData(); fullRender();
+                showToast(`${finalizados} pedido(s) de ${colab} finalizado(s).`);
+            } else showToast(`Nenhum pedido pôde ser finalizado.`, true);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>]/g, function (m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; });
+        }
+
+        // ========== DASHBOARD (com filtro de data no Aguardando Coleta) ==========
+        function renderDashboard() {
+            const todos = appData.pedidos;
+            const dataFiltro = document.getElementById('dashDataFiltro').value; // YYYY-MM-DD
+
+            const pedidosEmAberto = todos.filter(p => p.status === 'em_aberto');
+            const mapAberto = new Map();
+            pedidosEmAberto.forEach(p => {
+                if (!mapAberto.has(p.pedido)) mapAberto.set(p.pedido, { pedido: p.pedido, totalPecas: 0, falta: 0, dataCriacao: p.dataCriacao });
+                const item = mapAberto.get(p.pedido);
+                item.totalPecas += p.quantidadeTotalPedido || 0;
+                item.falta += p.quantidadeFaltante || 0;
+                if (p.dataCriacao && (!item.dataCriacao || new Date(p.dataCriacao) < new Date(item.dataCriacao))) item.dataCriacao = p.dataCriacao;
+            });
+            document.getElementById('kpiEmAbertoPedidos').innerText = mapAberto.size;
+            document.getElementById('kpiEmAbertoPecas').innerText = Array.from(mapAberto.values()).reduce((sum, item) => sum + item.totalPecas, 0);
+
+            const emAndamento = todos.filter(p => p.status === 'em_andamento');
+            const mapAndamento = new Map();
+            emAndamento.forEach(p => { if (!mapAndamento.has(p.pedido)) mapAndamento.set(p.pedido, { pedido: p.pedido }); });
+            document.getElementById('kpiEmAndamento').innerText = mapAndamento.size;
+
+            // Aguardando Coleta com filtro de data
+            let aguardandoColeta = todos.filter(p => p.status === 'aguardando_coleta');
+            if (dataFiltro) {
+                aguardandoColeta = aguardandoColeta.filter(p => p.dataFim && p.dataFim.startsWith(dataFiltro));
+            }
+            const mapColeta = new Map();
+            aguardandoColeta.forEach(p => { if (!mapColeta.has(p.pedido)) mapColeta.set(p.pedido, { pedido: p.pedido }); });
+            document.getElementById('kpiAguardandoColeta').innerText = mapColeta.size;
+
+            const aguardandoPdv = todos.filter(p => p.status === 'separado_aguardando_status');
+            const mapPdv = new Map();
+            aguardandoPdv.forEach(p => { if (!mapPdv.has(p.pedido)) mapPdv.set(p.pedido, { pedido: p.pedido }); });
+            document.getElementById('kpiAguardandoPdv').innerText = mapPdv.size;
+
+            document.querySelectorAll('.kpi-card').forEach(c => c.classList.remove('selected'));
+            if (dashboardFiltroAtivo) document.querySelector(`.kpi-card[data-filtro="${dashboardFiltroAtivo}"]`)?.classList.add('selected');
+            const container = document.getElementById('dashboardTableContainer');
+            const actionsDiv = document.getElementById('dashActions');
+            const filtrosEmAbertoDiv = document.getElementById('filtrosEmAberto');
+
+            if (!dashboardFiltroAtivo) {
+                container.style.display = 'none';
+                filtrosEmAbertoDiv.classList.remove('visible');
+                return;
+            }
+            container.style.display = 'block';
+            let titulo = '', head = '', body = '';
+            actionsDiv.innerHTML = '';
+            filtrosEmAbertoDiv.classList.remove('visible');
+
+            if (dashboardFiltroAtivo === 'em_aberto') {
+                const btnFechar = document.createElement('button');
+                btnFechar.className = 'btn btn-warning';
+                btnFechar.innerHTML = '<i class="fa-solid fa-box"></i> Fechar Caixa no S2L';
+                btnFechar.onclick = function () {
+                    if (!confirm('Deseja remover da base os pedidos com quantidade faltante igual a zero (Fechar Caixa)?')) return;
+                    const pedidosRemover = appData.pedidos.filter(p => p.status === 'em_aberto' && (p.quantidadeFaltante === 0 || p.quantidadeFaltante === undefined));
+                    if (pedidosRemover.length === 0) { showToast('Nenhum pedido com falta zero para remover.', true); return; }
+                    const idsRemover = pedidosRemover.map(p => p.id);
+                    appData.pedidos = appData.pedidos.filter(p => !idsRemover.includes(p.id));
+                    saveData(); showToast(`${pedidosRemover.length} pedido(s) removido(s) da base.`); renderDashboard();
+                };
+                actionsDiv.appendChild(btnFechar);
+                filtrosEmAbertoDiv.classList.add('visible');
+                let lista = Array.from(mapAberto.values()).map(item => ({
+                    pedido: item.pedido, total: item.totalPecas, falta: item.falta,
+                    dataCriacao: item.dataCriacao, dias: calcularDiasAberto(item.dataCriacao),
+                    tempoAberto: formatTempoAberto(item.dataCriacao)
+                }));
+                aplicarFiltrosEmAberto(lista);
+            } else if (dashboardFiltroAtivo === 'em_andamento') {
+                titulo = '⏳ Em Separação';
+                head = '<tr><th>Pedido</th><th>Operador</th><th>Tempo Atual</th></tr>';
+                body = emAndamento.map(p => {
+                    const t = Math.floor((new Date() - new Date(p.dataInicio)) / 1000);
+                    return `<tr><td><strong>${escapeHtml(p.pedido)}</strong></td><td>${escapeHtml(p.colaborador)}</td><td class="timer-display">${formatTime(t)}</td></tr>`;
+                }).join('');
+                if (!body) body = '<tr class="empty-state"><td colspan="3">Nenhum pedido em separação.</td></tr>';
+                document.getElementById('dashboardTableTitle').innerText = titulo;
+                document.getElementById('dashboardTableHead').innerHTML = head;
+                document.getElementById('dashboardTableBody').innerHTML = body;
+            } else if (dashboardFiltroAtivo === 'aguardando_coleta') {
+                titulo = '📦 Aguardando Coleta';
+                head = '<tr><th>Pedido</th><th>Operador</th><th>Data Coleta</th><th>Quantidade</th></tr>';
+                body = aguardandoColeta.map(p =>
+                    `<tr><td><strong>${escapeHtml(p.pedido)}</strong></td><td>${escapeHtml(p.colaborador || '-')}</td><td>${p.dataFim ? new Date(p.dataFim).toLocaleString('pt-BR') : '-'}</td><td>${p.quantidadeTotalPedido || 0}</td></tr>`
+                ).join('');
+                if (!body) body = '<tr class="empty-state"><td colspan="4">Nenhum pedido aguardando coleta.</td></tr>';
+                document.getElementById('dashboardTableTitle').innerText = titulo;
+                document.getElementById('dashboardTableHead').innerHTML = head;
+                document.getElementById('dashboardTableBody').innerHTML = body;
+            } else if (dashboardFiltroAtivo === 'separado_aguardando_status') {
+                titulo = '🕒 Aguardando Status PDV (conferência)';
+                head = '<tr><th>Pedido</th><th>Operador</th><th>Data Início Separação</th><th>Tempo Total</th></tr>';
+                body = aguardandoPdv.map(p =>
+                    `<tr><td><strong>${escapeHtml(p.pedido)}</strong></td><td>${escapeHtml(p.colaborador)}</td><td>${formatDateTime(p.dataInicio)}</td><td>${formatTime(p.tempoTotalSegundos)}</td></tr>`
+                ).join('');
+                if (!body) body = '<tr class="empty-state"><td colspan="4">Nenhum pedido aguardando PDV.</td></tr>';
+                document.getElementById('dashboardTableTitle').innerText = titulo;
+                document.getElementById('dashboardTableHead').innerHTML = head;
+                document.getElementById('dashboardTableBody').innerHTML = body;
+            }
+        }
+
+        function aplicarFiltrosEmAberto(lista) {
+            const filtroPedido = document.getElementById('filtroPedido').value.toLowerCase().trim();
+            const faltaMin = parseFloat(document.getElementById('filtroFaltaMin').value) || 0;
+            const faltaMax = parseFloat(document.getElementById('filtroFaltaMax').value) || 999999;
+            let filtrados = lista.filter(item => {
+                if (filtroPedido && !item.pedido.toLowerCase().includes(filtroPedido)) return false;
+                if (item.falta < faltaMin || item.falta > faltaMax) return false;
+                return true;
+            });
+            filtrados.sort((a, b) => {
+                const dateA = a.dataCriacao ? new Date(a.dataCriacao) : new Date(0);
+                const dateB = b.dataCriacao ? new Date(b.dataCriacao) : new Date(0);
+                return dateA - dateB;
+            });
+            const head = '<tr><th>Pedido</th><th>Quantidade total</th><th>Quantidade faltante</th><th>Tempo em aberto</th></tr>';
+            let body = filtrados.map(item => {
+                let faltaDisplay = item.falta > 0 ? item.falta : '<span class="fechar-caixa">Fechar Caixa no S2L</span>';
+                return `<tr><td><strong>${escapeHtml(item.pedido)}</strong></td><td>${item.total}</td><td>${faltaDisplay}</td><td>${item.tempoAberto}</td></tr>`;
+            }).join('');
+            if (!body) body = '<tr class="empty-state"><td colspan="4">Nenhum pedido encontrado com os filtros aplicados.</td></tr>';
+            document.getElementById('dashboardTableTitle').innerText = '📋 Pedidos em Aberto';
+            document.getElementById('dashboardTableHead').innerHTML = head;
+            document.getElementById('dashboardTableBody').innerHTML = body;
+        }
+
+        document.getElementById('btnAplicarFiltros').addEventListener('click', function () {
+            if (dashboardFiltroAtivo === 'em_aberto') {
+                const todos = appData.pedidos;
+                const mapAberto = new Map();
+                todos.filter(p => p.status === 'em_aberto').forEach(p => {
+                    if (!mapAberto.has(p.pedido)) mapAberto.set(p.pedido, { pedido: p.pedido, totalPecas: 0, falta: 0, dataCriacao: p.dataCriacao });
+                    const item = mapAberto.get(p.pedido);
+                    item.totalPecas += p.quantidadeTotalPedido || 0;
+                    item.falta += p.quantidadeFaltante || 0;
+                    if (p.dataCriacao && (!item.dataCriacao || new Date(p.dataCriacao) < new Date(item.dataCriacao))) item.dataCriacao = p.dataCriacao;
+                });
+                const lista = Array.from(mapAberto.values()).map(item => ({
+                    pedido: item.pedido, total: item.totalPecas, falta: item.falta,
+                    dataCriacao: item.dataCriacao, tempoAberto: formatTempoAberto(item.dataCriacao)
+                }));
+                aplicarFiltrosEmAberto(lista);
+            }
+        });
+
+        document.getElementById('btnLimparFiltros').addEventListener('click', function () {
+            document.getElementById('filtroPedido').value = '';
+            document.getElementById('filtroFaltaMin').value = '';
+            document.getElementById('filtroFaltaMax').value = '';
+            document.getElementById('btnAplicarFiltros').click();
+        });
+
+        document.querySelectorAll('.kpi-card').forEach(card => card.addEventListener('click', function () {
+            const f = this.dataset.filtro;
+            dashboardFiltroAtivo = (dashboardFiltroAtivo === f) ? null : f;
+            renderDashboard();
+        }));
+
+        // Ao alterar a data, re-renderiza o dashboard para atualizar o KPI de Aguardando Coleta
+        document.getElementById('dashDataFiltro').addEventListener('change', function () {
+            renderDashboard();
+        });
+
+        // ========== PRODUTIVIDADE ==========
+        function getProdutividadeData(dataFiltro = null, colabFiltro = '', turnoFiltro = '', tipoFiltro = '') {
+            let pedidos = appData.pedidos.filter(p => p.status === 'aguardando_coleta' && p.dataFim);
+            if (dataFiltro) pedidos = pedidos.filter(p => p.dataFim.split('T')[0] === dataFiltro);
+            const mapa = new Map();
+            pedidos.forEach(p => {
+                if (colabFiltro && !p.colaborador?.toLowerCase().includes(colabFiltro.toLowerCase())) return;
+                if (turnoFiltro && p.turno !== turnoFiltro) return;
+                if (tipoFiltro && p.tipoColaborador !== tipoFiltro) return;
+                const chave = `${p.colaborador}|${p.tipoColaborador}|${p.turno}`;
+                if (!mapa.has(chave)) mapa.set(chave, { colaborador: p.colaborador, tipo: p.tipoColaborador, turno: p.turno, pedidos: 0, pecas: 0 });
+                const item = mapa.get(chave);
+                item.pedidos++;
+                item.pecas += p.quantidadeTotalPedido || 0;
+            });
+            return Array.from(mapa.values());
+        }
+
+        function renderProdutividade() {
+            const data = document.getElementById('prodDataFiltro').value;
+            const colab = document.getElementById('prodColabFiltro').value;
+            const turno = document.getElementById('prodTurnoFiltro').value;
+            const tipo = document.getElementById('prodTipoFiltro').value;
+            const rows = getProdutividadeData(data, colab, turno, tipo);
+            const metaSep = metas.separador, metaEmp = metas.empilhadeirista;
+            document.getElementById('prodMetaInfo').innerHTML = `Metas: Separador ${metaSep} peças | Empilhadeirista ${metaEmp} pedidos`;
+            document.getElementById('tbodyProdutividade').innerHTML = rows.length ? rows.map(r => {
+                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
+                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
+                const pct = Math.round((atual / meta) * 100);
+                const status = pct >= 100 ? '<span class="badge-success">Meta atingida</span>' : '<span class="badge-danger">Abaixo da meta</span>';
+                return `<tr><td><strong>${escapeHtml(r.colaborador)}</strong></td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${meta}</td><td>${pct}%</td><td>${status}</td></tr>`;
+            }).join('') : '<tr class="empty-state"><td colspan="8">Nenhum dado no período.</td></tr>';
+        }
+
+        async function carregarHistorico() {
+            const data = document.getElementById('historicoData').value;
+            if (!data) return showToast('Selecione uma data', true);
+            const rows = getProdutividadeData(data, '', '', '');
+            const metaSep = metas.separador, metaEmp = metas.empilhadeirista;
+            let totalPecas = 0, totalPedidos = 0, bateuMeta = 0, totalColab = 0;
+            rows.forEach(r => {
+                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
+                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
+                totalPecas += r.pecas; totalPedidos += r.pedidos;
+                if (atual >= meta) bateuMeta++;
+                totalColab++;
+            });
+            document.getElementById('historicoResumo').innerHTML = `<div style="background:#f0f0f0; padding:10px; border-radius:8px;"><strong>📅 ${data}</strong> | Total Peças: ${totalPecas} | Total Pedidos: ${totalPedidos} | Colaboradores: ${totalColab} | Bateram meta: ${bateuMeta}</div>`;
+            document.getElementById('tbodyHistorico').innerHTML = rows.length ? rows.map(r => {
+                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
+                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
+                const bateu = atual >= meta;
+                return `<tr><td>${escapeHtml(r.colaborador)}</td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${meta}</td><td>${Math.round((atual/meta)*100)}%</td><td>${bateu ? '✅ Sim' : '❌ Não'}</td></tr>`;
+            }).join('') : '<tr><td colspan="8">Nenhum registro</td></tr>';
+        }
+
+        function exportToExcel(dataRows, headers, filename) {
+            const wsData = [headers, ...dataRows];
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Relatorio');
+            XLSX.writeFile(wb, `${filename}.xlsx`);
+            showToast(`Exportado ${filename}.xlsx`);
+        }
+
+        document.getElementById('exportDashExcel').onclick = () => {
+            if (!dashboardFiltroAtivo) return showToast('Selecione um card primeiro', true);
+            const headers = Array.from(document.getElementById('dashboardTableHead').querySelectorAll('th')).map(th => th.innerText);
+            const rows = Array.from(document.getElementById('dashboardTableBody').querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText)).filter(r => r.length && !r[0].includes('Nenhum'));
+            exportToExcel(rows, headers, `dashboard_${dashboardFiltroAtivo}`);
+        };
+        document.getElementById('exportProdExcel').onclick = () => {
+            const headers = ['Colaborador', 'Tipo', 'Turno', 'Pedidos', 'Peças', 'Meta', 'Atingimento', 'Status'];
+            const rows = Array.from(document.getElementById('tbodyProdutividade').querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText)).filter(r => r.length && !r[0].includes('Nenhum'));
+            exportToExcel(rows, headers, `produtividade_${new Date().toISOString().slice(0,10)}`);
+        };
+        document.getElementById('exportDashPDF').onclick = () => { window.print(); };
+        document.getElementById('exportProdPDF').onclick = () => { window.print(); };
+        document.getElementById('limparFiltrosDash').onclick = () => {
+            dashboardFiltroAtivo = null;
+            document.getElementById('dashDataFiltro').value = '';
+            renderDashboard();
+        };
+        document.getElementById('limparFiltrosProd').onclick = () => {
+            document.getElementById('prodDataFiltro').value = '';
+            document.getElementById('prodColabFiltro').value = '';
+            document.getElementById('prodTurnoFiltro').value = '';
+            document.getElementById('prodTipoFiltro').value = '';
+            renderProdutividade();
+        };
+        document.getElementById('btnCarregarHistorico').onclick = carregarHistorico;
+
+        document.getElementById('metaSeparador').value = metas.separador;
+        document.getElementById('metaEmpilhadeirista').value = metas.empilhadeirista;
+        document.getElementById('btnSalvarMetas').onclick = () => {
+            metas.separador = parseInt(document.getElementById('metaSeparador').value) || 300;
+            metas.empilhadeirista = parseInt(document.getElementById('metaEmpilhadeirista').value) || 10;
+            saveData();
+            renderProdutividade();
+            showToast('Metas salvas');
+        };
+
+        function renderUsuarios() {
+            const tbody = document.getElementById('tbodyUsuarios');
+            if (!tbody) return;
+            tbody.innerHTML = appData.users.map(u => {
+                let actions = '';
+                if (u.username !== 'Admin' || currentUser?.role === 'admin') actions += `<button class="btn btn-sm btn-outline alterar-senha" data-user="${u.username}" style="margin-right:4px;">Alterar Senha</button>`;
+                if (u.username !== 'Admin') actions += `<button class="btn btn-sm btn-danger excluir-user" data-user="${u.username}">Remover</button>`;
+                if (!actions) actions = '—';
+                return `<tr><td>${escapeHtml(u.nome || u.username)}</td><td>${escapeHtml(u.username)}</td><td>${u.role === 'admin' ? 'Admin' : 'Padrão'}</td><td>${new Date(u.createdAt).toLocaleDateString('pt-BR')}</td><td>${actions}</td></tr>`;
+            }).join('');
+            document.querySelectorAll('.alterar-senha').forEach(btn => { btn.removeEventListener('click', alterarSenhaHandler); btn.addEventListener('click', alterarSenhaHandler); });
+            document.querySelectorAll('.excluir-user').forEach(btn => { btn.removeEventListener('click', excluirUserHandler); btn.addEventListener('click', excluirUserHandler); });
+        }
+
+        function alterarSenhaHandler(e) {
+            const username = this.dataset.user;
+            const novaSenha = prompt(`Digite a nova senha para o usuário ${username}:`);
+            if (novaSenha === null) return;
+            if (novaSenha.trim() === '') { showToast('Senha não pode ser vazia.', true); return; }
+            const user = appData.users.find(u => u.username === username);
+            if (!user) { showToast('Usuário não encontrado.', true); return; }
+            user.password = novaSenha.trim();
+            saveData();
+            renderUsuarios();
+            showToast(`Senha de ${username} atualizada com sucesso.`);
+        }
+
+        function excluirUserHandler(e) {
+            const username = this.dataset.user;
+            if (!confirm(`Remover usuário ${username}?`)) return;
+            appData.users = appData.users.filter(u => u.username !== username);
+            saveData();
+            renderUsuarios();
+            showToast(`Usuário ${username} removido.`);
+        }
+
+        document.getElementById('btnCriarUsuario').onclick = () => {
+            const nome = document.getElementById('inputNovoNome').value.trim();
+            const usuario = document.getElementById('inputNovoUsuario').value.trim();
+            const senha = document.getElementById('inputNovaSenha').value.trim();
+            const role = document.getElementById('inputNovoRole').value;
+            if (!nome || !usuario || !senha) { showToast('Preencha todos os campos (Nome, Usuário e Senha).', true); return; }
+            if (appData.users.some(u => u.username === usuario)) { showToast('Nome de usuário já existe.', true); return; }
+            appData.users.push({ nome: nome, username: usuario, password: senha, role: role, createdAt: nowISO() });
+            saveData();
+            renderUsuarios();
+            document.getElementById('inputNovoNome').value = '';
+            document.getElementById('inputNovoUsuario').value = '';
+            document.getElementById('inputNovaSenha').value = '';
+            showToast(`Usuário ${usuario} criado com sucesso.`);
+        };
+
+        function renderBase() {
+            document.getElementById('countBaseTotal').innerText = appData.pedidos.length;
+            document.getElementById('tbodyBasePedidos').innerHTML = appData.pedidos.map(p =>
+                `<tr><td><strong>${escapeHtml(p.pedido)}</strong></td><td>${escapeHtml(p.sku||'-')}</td><td>${p.quantidadeTotalPedido || 0}</td><td>${statusBadge(p.status)}</td><td>${escapeHtml(p.colaborador||'-')}</td><td>${p.dtAlteracao||'-'}</td><td>${p.dataCriacao ? new Date(p.dataCriacao).toLocaleString('pt-BR') : '-'}</td></tr>`
+            ).join('');
+        }
+
+        function statusBadge(s) {
+            if (s === 'em_aberto') return '<span class="badge badge-info">Em Aberto</span>';
+            if (s === 'em_andamento') return '<span class="badge badge-warning">Em Separação</span>';
+            if (s === 'aguardando_coleta') return '<span class="badge badge-success">Produção</span>';
+            if (s === 'separado_aguardando_status') return '<span class="badge badge-purple">Aguard. PDV</span>';
+            return s;
+        }
+
+        function switchTab(tab) {
+            if (!currentUser) return;
+            if (currentUser.role !== 'admin' && (tab === 'usuarios' || tab === 'configuracoes')) tab = 'dashboard';
+            currentTab = tab;
+            document.querySelectorAll('#sidebarNav .nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`)?.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+            const el = document.getElementById(`tab${tab.charAt(0).toUpperCase()+tab.slice(1)}`);
+            if (el) el.classList.add('active');
+            const titles = { baseS2L: 'Base S2L', lancamento: 'Lançamento', dashboard: 'Dashboard', produtividade: 'Produtividade', configuracoes: 'Configurações', usuarios: 'Usuários' };
+            document.getElementById('pageTitle').innerText = titles[tab] || '';
+            document.getElementById('breadcrumb').innerHTML = `Início / ${titles[tab]||''}`;
+            if (tab === 'lancamento') renderLancamento();
+            if (tab === 'baseS2L') renderBase();
+            if (tab === 'dashboard') renderDashboard();
+            if (tab === 'produtividade') { renderProdutividade(); if (document.getElementById('historicoData').value) carregarHistorico(); }
+            if (tab === 'usuarios') renderUsuarios();
+            if (tab === 'configuracoes') {
+                document.getElementById('metaSeparador').value = metas.separador;
+                document.getElementById('metaEmpilhadeirista').value = metas.empilhadeirista;
+            }
+        }
+
+        function updateSidebar() {
+            if (!currentUser) return;
+            document.getElementById('sidebarAvatar').innerText = currentUser.username[0].toUpperCase();
+            document.getElementById('sidebarUserName').innerText = currentUser.nome || currentUser.username;
+            document.getElementById('sidebarUserRole').innerText = currentUser.role === 'admin' ? 'Administrador' : 'Usuário';
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = currentUser.role === 'admin' ? '' : 'none');
+        }
+
+        document.querySelectorAll('#sidebarNav .nav-item').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+        document.getElementById('btnLogout').onclick = () => {
+            clearInterval(timerInterval);
+            currentUser = null;
+            sessionStorage.clear();
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('appWrapper').classList.remove('active');
+        };
+
+        const loginForm = document.getElementById('loginForm');
+        loginForm.addEventListener('submit', e => {
+            e.preventDefault();
+            const u = document.getElementById('loginUser').value.trim(), p = document.getElementById('loginPass').value.trim();
+            const user = appData.users.find(x => x.username === u && x.password === p);
+            if (user) {
+                currentUser = user;
+                sessionStorage.setItem('acp_session_v3', JSON.stringify({username: u, password: p}));
+                document.getElementById('loginError').classList.remove('show');
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('appWrapper').classList.add('active');
+                updateSidebar();
+                switchTab('lancamento');
+                startTimer();
+            } else document.getElementById('loginError').classList.add('show');
+        });
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                document.querySelectorAll('.timer-display[data-colab]').forEach(el => {
+                    const colab = el.dataset.colab;
+                    const pedidos = appData.pedidos.filter(p => p.status === 'em_andamento' && p.colaborador === colab);
+                    if (pedidos.length > 0) {
+                        const maisAntigo = pedidos.reduce((a, b) => a.dataInicio < b.dataInicio ? a : b);
+                        const tempo = Math.floor((new Date() - new Date(maisAntigo.dataInicio)) / 1000);
+                        el.textContent = formatTime(tempo);
+                    } else el.textContent = '--';
+                });
+                updateLiveTime();
+            }, 500);
+        }
+
+        const sess = sessionStorage.getItem('acp_session_v3');
+        if (sess) {
+            try {
+                const parsed = JSON.parse(sess);
+                const user = appData.users.find(u => u.username === parsed.username && u.password === parsed.password);
+                if (user) {
+                    currentUser = user;
+                    updateSidebar();
+                    switchTab('lancamento');
+                    startTimer();
+                    document.getElementById('loginOverlay').classList.add('hidden');
+                    document.getElementById('appWrapper').classList.add('active');
+                } else document.getElementById('loginOverlay').classList.remove('hidden');
+            } catch (e) { document.getElementById('loginOverlay').classList.remove('hidden'); }
+        } else document.getElementById('loginOverlay').classList.remove('hidden');
+
+        renderListaPedidos();
+        fullRender();
+    })();
+</script>
+</body>
+</html>
