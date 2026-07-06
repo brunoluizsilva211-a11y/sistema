@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>ACP - Acompanhamento de Produtividade</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js">
-    </script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
             integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -161,6 +160,10 @@
         .filtro-group input[type="text"] { width: 150px; }
         .progress-text { margin-left: 10px; font-size: 13px; color: var(--gray-700); }
         .faltante-badge { color: var(--red); font-weight: bold; }
+        
+        /* Estilo para o input de Tratativa da Busca */
+        .input-tratativa { width: 100%; min-width: 140px; padding: 4px 6px; border: 1px solid var(--gray-200); border-radius: 4px; font-size: 12px; background: transparent; transition: 0.2s; }
+        .input-tratativa:focus { outline: 2px solid var(--purple); background: #fff; }
     </style>
 </head>
 <body>
@@ -308,6 +311,7 @@
                     <div class="kpi-card" data-filtro="em_andamento">
                         <div class="kpi-icon" style="background:#FF660020;color:var(--orange);"><i class="fa-solid fa-spinner"></i></div>
                         <div class="kpi-content">
+                            <div class="kpi-title">Em Separação</div>
                             <div class="kpi-indicators"><div class="kpi-indicator"><span class="kpi-value" id="kpiEmAndamento">0</span><span class="kpi-label">PEDIDOS</span></div></div>
                         </div>
                     </div>
@@ -504,6 +508,8 @@
                         if (!p.dataFim) p.dataFim = null;
                         if (p.quantidadeTotalPedido === undefined) p.quantidadeTotalPedido = p.quantidadePedido || 0;
                         if (p.quantidadeFaltante === undefined) p.quantidadeFaltante = 0;
+                        // NOVO CAMPO: Inicializa a tratativa da busca
+                        if (!p.tratativaBusca) p.tratativaBusca = '';
                     });
                     if (!data.users.some(u => u.role === 'admin')) {
                         data.users.push({ nome: 'Administrador', username: 'Admin', password: '20362881', role: 'admin', createdAt: new Date().toISOString() });
@@ -635,26 +641,52 @@
             });
         }
 
-        function verificarDuplicidade(pedido) {
-            const existente = appData.pedidos.find(p => p.pedido === pedido);
-            if (existente) {
-                const statusMap = { 'em_aberto': 'Em Aberto', 'em_andamento': 'Em Separação', 'aguardando_coleta': 'Produção', 'separado_aguardando_status': 'Aguardando Status PDV' };
-                const statusLabel = statusMap[existente.status] || existente.status;
-                return confirm(`O pedido ${pedido} já existe no sistema com status: ${statusLabel}. Deseja lançar novamente?`);
-            }
-            return true;
-        }
-
+        // Lógica modificada para atender ao requisito de Duplicidade e Tratativa de Busca
         function adicionarPedidoLista(pedido) {
             const p = pedido.trim();
             if (!p) return false;
             if (listaPedidosTemp.includes(p)) { showToast('Pedido já está na lista', true); return false; }
-            if (!verificarDuplicidade(p)) return false;
-            listaPedidosTemp.push(p);
-            renderListaPedidos();
-            document.getElementById('inputPedido').value = '';
-            document.getElementById('inputPedido').focus();
-            return true;
+
+            // Verifica duplicidade na base de dados
+            const existente = appData.pedidos.find(ped => ped.pedido === p);
+
+            if (existente) {
+                const statusMap = { 'em_aberto': 'Em Aberto', 'em_andamento': 'Em Separação', 'aguardando_coleta': 'Produção', 'separado_aguardando_status': 'Aguardando Status PDV' };
+                const statusLabel = statusMap[existente.status] || existente.status;
+                
+                // Pega o colaborador selecionado para incluir no popup
+                const colab = document.getElementById('inputColaborador').value.trim();
+                
+                if (!colab) {
+                    showToast('Para verificar duplicidade e iniciar tratativa de busca, informe um Colaborador.', true);
+                    return false;
+                }
+
+                // Exibe o popup customizado com o nome do colaborador integrado
+                if (confirm(`O pedido ${p} já existe no sistema com status: ${statusLabel}.\n\nDeseja iniciar a tratativa de busca com o colaborador "${colab}"?\n(Clique em OK para iniciar a tratativa e ser redirecionado ao Dashboard, ou Cancelar para ignorar)`)) {
+                    
+                    // Atualiza a tratativa de busca do objeto existente (sem criar duplicata)
+                    existente.tratativaBusca = 'Busca em tratativa: ' + colab;
+                    saveData();
+                    showToast(`Tratativa de busca iniciada para o pedido ${p} com colaborador ${colab}.`);
+
+                    // Redireciona para o Dashboard, seleciona o filtro "Em Aberto" e renderiza
+                    dashboardFiltroAtivo = 'em_aberto';
+                    switchTab('dashboard');
+                    
+                    return false; // Não adiciona à lista de lançamento
+                } else {
+                    // Usuário cancelou
+                    return false;
+                }
+            } else {
+                // Pedido não existe, adiciona à lista de Lançamento normalmente
+                listaPedidosTemp.push(p);
+                renderListaPedidos();
+                document.getElementById('inputPedido').value = '';
+                document.getElementById('inputPedido').focus();
+                return true;
+            }
         }
 
         function limparLista() { listaPedidosTemp = []; renderListaPedidos(); }
@@ -752,7 +784,7 @@
             let importados = 0, atualizados = 0;
             for (const [pedido, dados] of mapPedido) {
                 let existente = appData.pedidos.find(p => p.pedido === pedido);
-                const isActive = existente && (existente.status === 'em_andamento' || existente.status === 'separado_aguardando_status');
+                const isActive = existente && existente.status === 'em_andamento';
                 if (existente) {
                     existente.quantidadeTotalPedido = dados.totalOrg;
                     existente.quantidadeFaltante = dados.totalFalta;
@@ -763,7 +795,9 @@
                     }
                     atualizados++;
                 } else {
-                    const statusMapped = mapStatusToApp(dados.statusPlanilha) || 'em_aberto';
+                    // Lógica nova: se não houver status na planilha, o pedido vai direto para "Em Separação"
+                    const statusMapped = dados.statusPlanilha ? (mapStatusToApp(dados.statusPlanilha) || 'em_aberto') : 'em_andamento';
+                    
                     let dataFimImport = null;
                     if (statusMapped === 'aguardando_coleta') dataFimImport = dados.dataCriacao;
                     const novo = {
@@ -771,7 +805,8 @@
                         quantidadeTotalPedido: dados.totalOrg, quantidadeFaltante: dados.totalFalta,
                         colaborador: null, tipoColaborador: 'Separador de Chão', turno: 'Turno 1',
                         dataInicio: null, dataFim: dataFimImport, status: statusMapped, dtAlteracao: '',
-                        dataCriacao: dados.dataCriacao, tempoTotalSegundos: null
+                        dataCriacao: dados.dataCriacao, tempoTotalSegundos: null,
+                        tratativaBusca: '' // Inicializa o campo de tratativa
                     };
                     appData.pedidos.push(novo);
                     importados++;
@@ -792,7 +827,7 @@
             const pedidoNumero = pedidoObj.pedido;
             const outro = appData.pedidos.find(p => p.pedido === pedidoNumero && p.id !== pedidoObj.id);
             if (outro) return false;
-            pedidoObj.status = 'aguardando_coleta';
+            pedidoObj.status = 'separado_aguardando_status';
             pedidoObj.dataFim = nowISO();
             pedidoObj.quantidadeColetada = pedidoObj.quantidadeTotalPedido;
             pedidoObj.tempoTotalSegundos = Math.floor((new Date(pedidoObj.dataFim) - new Date(pedidoObj.dataInicio)) / 1000);
@@ -823,7 +858,7 @@
                 if (!confirm(`O colaborador ${colab} já possui ${pedidosAtivos.length} pedido(s) em andamento. Deseja finalizar os pedidos atuais e iniciar os novos?`)) return;
                 let finalizados = 0;
                 pedidosAtivos.forEach(p => { if (finalizarPedido(p)) finalizados++; });
-                if (finalizados > 0) showToast(`${finalizados} pedido(s) finalizado(s) e movido(s) para Aguardando Coleta.`);
+                if (finalizados > 0) showToast(`${finalizados} pedido(s) finalizado(s) e movido(s) para Aguardando PDV.`);
             }
 
             let iniciados = 0, erros = 0;
@@ -836,12 +871,13 @@
                 }
                 let base = appData.pedidos.find(p => p.pedido === pedidoNum && (p.status === 'em_aberto' || p.status === 'separado_aguardando_status'));
                 if (!base) {
+                    // ALTERAÇÃO: Ao criar um lançamento manual, o status inicial já vai para 'em_andamento'
                     base = {
                         id: appData.nextId++, pedido: pedidoNum, sku: '', quantidadePedido: 1,
-                        quantidadeTotalPedido: 1, quantidadeFaltante: 0, status: 'em_aberto',
+                        quantidadeTotalPedido: 1, quantidadeFaltante: 0, status: 'em_andamento',
                         dtAlteracao: '', dataCriacao: null, quantidadeColetada: null,
                         tempoTotalSegundos: null, colaborador: null, tipoColaborador: 'Separador de Chão',
-                        turno: 'Turno 1', dataInicio: null, dataFim: null
+                        turno: 'Turno 1', dataInicio: null, dataFim: null, tratativaBusca: '' 
                     };
                     appData.pedidos.push(base);
                 } else {
@@ -850,7 +886,11 @@
                     }
                 }
                 base.colaborador = colab; base.tipoColaborador = tipo; base.turno = turno;
-                base.dataInicio = nowISO(); base.status = 'em_andamento';
+                base.dataInicio = nowISO(); 
+                base.status = 'em_andamento'; // Garante que o status final seja "Em Separação"
+                
+                // NOVA LÓGICA: Preencher a tratativa automaticamente
+                base.tratativaBusca = 'Busca em tratativa: ' + colab;
                 if (!appData.colaboradores.includes(colab)) appData.colaboradores.push(colab);
                 iniciados++;
             });
@@ -920,7 +960,7 @@
             pedidosDoColab.forEach(p => { if (finalizarPedido(p)) finalizados++; });
             if (finalizados > 0) {
                 saveData(); fullRender();
-                showToast(`${finalizados} pedido(s) de ${colab} finalizado(s).`);
+                showToast(`${finalizados} pedido(s) de ${colab} finalizado(s) e movido(s) para Aguardando PDV.`);
             } else showToast(`Nenhum pedido pôde ser finalizado.`, true);
         }
 
@@ -937,7 +977,7 @@
             const pedidosEmAberto = todos.filter(p => p.status === 'em_aberto');
             const mapAberto = new Map();
             pedidosEmAberto.forEach(p => {
-                if (!mapAberto.has(p.pedido)) mapAberto.set(p.pedido, { pedido: p.pedido, totalPecas: 0, falta: 0, dataCriacao: p.dataCriacao });
+                if (!mapAberto.has(p.pedido)) mapAberto.set(p.pedido, { pedido: p.pedido, totalPecas: 0, falta: 0, dataCriacao: p.dataCriacao, tratativaBusca: p.tratativaBusca || '' });
                 const item = mapAberto.get(p.pedido);
                 item.totalPecas += p.quantidadeTotalPedido || 0;
                 item.falta += p.quantidadeFaltante || 0;
@@ -952,7 +992,11 @@
 
             let aguardandoColeta = todos.filter(p => p.status === 'aguardando_coleta');
             if (dataFiltro) {
-                aguardandoColeta = aguardandoColeta.filter(p => p.dataFim && p.dataFim.startsWith(dataFiltro));
+                aguardandoColeta = aguardandoColeta.filter(p => {
+                    if (!p.dataFim) return false;
+                    const localDate = new Date(p.dataFim).toLocaleDateString('sv-SE');
+                    return localDate === dataFiltro;
+                });
             }
             const mapColeta = new Map();
             aguardandoColeta.forEach(p => { if (!mapColeta.has(p.pedido)) mapColeta.set(p.pedido, { pedido: p.pedido }); });
@@ -985,18 +1029,48 @@
                 btnFechar.innerHTML = '<i class="fa-solid fa-box"></i> Fechar Caixa no S2L';
                 btnFechar.onclick = function () {
                     if (!confirm('Deseja remover da base os pedidos com quantidade faltante igual a zero (Fechar Caixa)?')) return;
+                    // Apenas pedidos com status 'em_aberto' e falta zero podem ser removidos com esta ação
                     const pedidosRemover = appData.pedidos.filter(p => p.status === 'em_aberto' && (p.quantidadeFaltante === 0 || p.quantidadeFaltante === undefined));
-                    if (pedidosRemover.length === 0) { showToast('Nenhum pedido com falta zero para remover.', true); return; }
+                    if (pedidosRemover.length === 0) { showToast('Nenhum pedido em aberto com falta zero para remover.', true); return; }
                     const idsRemover = pedidosRemover.map(p => p.id);
                     appData.pedidos = appData.pedidos.filter(p => !idsRemover.includes(p.id));
                     saveData(); showToast(`${pedidosRemover.length} pedido(s) removido(s) da base.`); renderDashboard();
                 };
                 actionsDiv.appendChild(btnFechar);
                 filtrosEmAbertoDiv.classList.add('visible');
-                let lista = Array.from(mapAberto.values()).map(item => ({
-                    pedido: item.pedido, total: item.totalPecas, falta: item.falta,
+
+                // ALTERAÇÃO: Buscar pedidos 'em_aberto' E também 'em_andamento' para permanecer na lista
+                const pedidosExibidos = appData.pedidos.filter(p => p.status === 'em_aberto' || p.status === 'em_andamento');
+                
+                const mapAbertoCompleto = new Map();
+                pedidosExibidos.forEach(p => {
+                    if (!mapAbertoCompleto.has(p.pedido)) {
+                        mapAbertoCompleto.set(p.pedido, {
+                            pedido: p.pedido, total: 0, falta: 0, 
+                            dataCriacao: p.dataCriacao, 
+                            tempoAberto: formatTempoAberto(p.dataCriacao),
+                            tratativaBusca: p.tratativaBusca || '' // Pega a tratativa do objeto real
+                        });
+                    } else {
+                        // Se já existe, garante que a tratativa preenchida (se houver) não seja sobrescrita
+                        const existing = mapAbertoCompleto.get(p.pedido);
+                        if (p.tratativaBusca && !existing.tratativaBusca) {
+                            existing.tratativaBusca = p.tratativaBusca;
+                        }
+                    }
+                    const item = mapAbertoCompleto.get(p.pedido);
+                    item.total += p.quantidadeTotalPedido || 0;
+                    item.falta += p.quantidadeFaltante || 0;
+                    if (p.dataCriacao && (!item.dataCriacao || new Date(p.dataCriacao) < new Date(item.dataCriacao))) {
+                        item.dataCriacao = p.dataCriacao;
+                        item.tempoAberto = formatTempoAberto(p.dataCriacao);
+                    }
+                });
+
+                let lista = Array.from(mapAbertoCompleto.values()).map(item => ({
+                    pedido: item.pedido, total: item.total, falta: item.falta,
                     dataCriacao: item.dataCriacao, dias: calcularDiasAberto(item.dataCriacao),
-                    tempoAberto: formatTempoAberto(item.dataCriacao)
+                    tempoAberto: item.tempoAberto, tratativaBusca: item.tratativaBusca
                 }));
                 aplicarFiltrosEmAberto(lista);
             } else if (dashboardFiltroAtivo === 'em_andamento') {
@@ -1047,31 +1121,81 @@
                 const dateB = b.dataCriacao ? new Date(b.dataCriacao) : new Date(0);
                 return dateA - dateB;
             });
-            const head = '<tr><th>Pedido</th><th>Quantidade total</th><th>Quantidade faltante</th><th>Tempo em aberto</th></tr>';
+
+            // Adicionando a nova coluna "Tratativa da Busca"
+            const head = '<tr><th>Pedido</th><th>Quantidade total</th><th>Quantidade faltante</th><th>Tempo em aberto</th><th>Tratativa da Busca</th></tr>';
             let body = filtrados.map(item => {
                 let faltaDisplay = item.falta > 0 ? item.falta : '<span class="fechar-caixa">Fechar Caixa no S2L</span>';
-                return `<tr><td><strong>${escapeHtml(item.pedido)}</strong></td><td>${item.total}</td><td>${faltaDisplay}</td><td>${item.tempoAberto}</td></tr>`;
+                let tratativaVal = item.tratativaBusca || '';
+                // Input editável com evento de salvamento
+                return `<tr>
+                    <td><strong>${escapeHtml(item.pedido)}</strong></td>
+                    <td>${item.total}</td>
+                    <td>${faltaDisplay}</td>
+                    <td>${item.tempoAberto}</td>
+                    <td><input type="text" class="input-tratativa" data-pedido="${escapeHtml(item.pedido)}" value="${escapeHtml(tratativaVal)}" placeholder="Digite a tratativa..." style="width:100%; min-width:140px; padding:4px 6px; border:1px solid var(--gray-200); border-radius:4px; font-size:12px; background:transparent;"></td>
+                </tr>`;
             }).join('');
-            if (!body) body = '<tr class="empty-state"><td colspan="4">Nenhum pedido encontrado com os filtros aplicados.</td></tr>';
+            if (!body) body = '<tr class="empty-state"><td colspan="5">Nenhum pedido encontrado com os filtros aplicados.</td></tr>';
             document.getElementById('dashboardTableTitle').innerText = '📋 Pedidos em Aberto';
             document.getElementById('dashboardTableHead').innerHTML = head;
             document.getElementById('dashboardTableBody').innerHTML = body;
         }
 
+        // Eventos de salvamento da Tratativa da Busca
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('input-tratativa')) {
+                const pedido = e.target.dataset.pedido;
+                const novoValor = e.target.value;
+                const pedidoObj = appData.pedidos.find(p => p.pedido === pedido);
+                if (pedidoObj) {
+                    pedidoObj.tratativaBusca = novoValor;
+                    saveData();
+                }
+            }
+        });
+        document.addEventListener('blur', function(e) {
+            if (e.target.classList.contains('input-tratativa')) {
+                const pedido = e.target.dataset.pedido;
+                const novoValor = e.target.value;
+                const pedidoObj = appData.pedidos.find(p => p.pedido === pedido);
+                if (pedidoObj) {
+                    pedidoObj.tratativaBusca = novoValor;
+                    saveData();
+                }
+            }
+        }, true);
+
         document.getElementById('btnAplicarFiltros').addEventListener('click', function () {
             if (dashboardFiltroAtivo === 'em_aberto') {
-                const todos = appData.pedidos;
-                const mapAberto = new Map();
-                todos.filter(p => p.status === 'em_aberto').forEach(p => {
-                    if (!mapAberto.has(p.pedido)) mapAberto.set(p.pedido, { pedido: p.pedido, totalPecas: 0, falta: 0, dataCriacao: p.dataCriacao });
-                    const item = mapAberto.get(p.pedido);
-                    item.totalPecas += p.quantidadeTotalPedido || 0;
+                const pedidosExibidos = appData.pedidos.filter(p => p.status === 'em_aberto' || p.status === 'em_andamento');
+                const mapAbertoCompleto = new Map();
+                pedidosExibidos.forEach(p => {
+                    if (!mapAbertoCompleto.has(p.pedido)) {
+                        mapAbertoCompleto.set(p.pedido, {
+                            pedido: p.pedido, total: 0, falta: 0, 
+                            dataCriacao: p.dataCriacao, 
+                            tempoAberto: formatTempoAberto(p.dataCriacao),
+                            tratativaBusca: p.tratativaBusca || ''
+                        });
+                    } else {
+                        const existing = mapAbertoCompleto.get(p.pedido);
+                        if (p.tratativaBusca && !existing.tratativaBusca) {
+                            existing.tratativaBusca = p.tratativaBusca;
+                        }
+                    }
+                    const item = mapAbertoCompleto.get(p.pedido);
+                    item.total += p.quantidadeTotalPedido || 0;
                     item.falta += p.quantidadeFaltante || 0;
-                    if (p.dataCriacao && (!item.dataCriacao || new Date(p.dataCriacao) < new Date(item.dataCriacao))) item.dataCriacao = p.dataCriacao;
+                    if (p.dataCriacao && (!item.dataCriacao || new Date(p.dataCriacao) < new Date(item.dataCriacao))) {
+                        item.dataCriacao = p.dataCriacao;
+                        item.tempoAberto = formatTempoAberto(p.dataCriacao);
+                    }
                 });
-                const lista = Array.from(mapAberto.values()).map(item => ({
-                    pedido: item.pedido, total: item.totalPecas, falta: item.falta,
-                    dataCriacao: item.dataCriacao, tempoAberto: formatTempoAberto(item.dataCriacao)
+                const lista = Array.from(mapAbertoCompleto.values()).map(item => ({
+                    pedido: item.pedido, total: item.total, falta: item.falta,
+                    dataCriacao: item.dataCriacao, tempoAberto: item.tempoAberto,
+                    tratativaBusca: item.tratativaBusca
                 }));
                 aplicarFiltrosEmAberto(lista);
             }
@@ -1097,7 +1221,10 @@
         // ========== PRODUTIVIDADE (REMODELADA) ==========
         function getProdutividadeData(dataFiltro = null, colabFiltro = '', turnoFiltro = '', tipoFiltro = '', statusFiltro = '') {
             let pedidos = appData.pedidos.filter(p => p.status === 'aguardando_coleta' && p.dataFim);
-            if (dataFiltro) pedidos = pedidos.filter(p => p.dataFim.split('T')[0] === dataFiltro);
+            if (dataFiltro) pedidos = pedidos.filter(p => {
+                const localDate = new Date(p.dataFim).toLocaleDateString('sv-SE');
+                return localDate === dataFiltro;
+            });
             const mapa = new Map();
             pedidos.forEach(p => {
                 if (colabFiltro && !p.colaborador?.toLowerCase().includes(colabFiltro.toLowerCase())) return;
@@ -1129,7 +1256,6 @@
             const statusFiltro = document.getElementById('prodStatusFiltro').value;
             const rows = getProdutividadeData(data, colab, turno, tipo, statusFiltro);
 
-            // Atualizar dashboard resumo
             let atingiram = 0, naoAtingiram = 0, totalPecas = 0, totalPedidos = 0;
             rows.forEach(r => {
                 if (r.pct >= 100) atingiram++; else naoAtingiram++;
@@ -1160,7 +1286,6 @@
             }).join('') : '<tr class="empty-state"><td colspan="9">Nenhum dado no período.</td></tr>';
         }
 
-        // Listeners para filtros de produtividade
         document.getElementById('prodDataFiltro').addEventListener('change', renderProdutividade);
         document.getElementById('prodColabFiltro').addEventListener('input', renderProdutividade);
         document.getElementById('prodTurnoFiltro').addEventListener('change', renderProdutividade);
@@ -1196,8 +1321,20 @@
 
         document.getElementById('exportDashExcel').onclick = () => {
             if (!dashboardFiltroAtivo) return showToast('Selecione um card primeiro', true);
-            const headers = Array.from(document.getElementById('dashboardTableHead').querySelectorAll('th')).map(th => th.innerText);
-            const rows = Array.from(document.getElementById('dashboardTableBody').querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText)).filter(r => r.length && !r[0].includes('Nenhum'));
+            const thead = document.getElementById('dashboardTableHead');
+            const tbody = document.getElementById('dashboardTableBody');
+            const headers = Array.from(thead.querySelectorAll('th')).map(th => th.innerText);
+            
+            const rows = Array.from(tbody.querySelectorAll('tr')).map(tr => {
+                return Array.from(tr.querySelectorAll('td')).map(td => {
+                    const input = td.querySelector('input');
+                    if (input) {
+                        return input.value; // Pega o valor do input para exportação
+                    }
+                    return td.innerText;
+                });
+            }).filter(r => r.length && !r[0].includes('Nenhum'));
+            
             exportToExcel(rows, headers, `dashboard_${dashboardFiltroAtivo}`);
         };
         document.getElementById('exportProdExcel').onclick = () => {
