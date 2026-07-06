@@ -9,8 +9,7 @@
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
             integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg=="
-            crossorigin="anonymous" referrerpolicy="no-referrer">
-    </script>
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         :root {
             --purple: #4D148C;
@@ -240,7 +239,7 @@
                     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
                         <div style="flex:1; min-width:180px;">
                             <label>👤 Colaborador</label>
-                            <input id="inputColaborador" list="colaboradoresList" placeholder="Nome do colaborador">
+                            <input id="inputColaborador" list="colaboradoresList">
                             <datalist id="colaboradoresList"></datalist>
                         </div>
                         <div style="flex:0.8;">
@@ -314,6 +313,7 @@
                     <div class="kpi-card" data-filtro="aguardando_coleta">
                         <div class="kpi-icon" style="background:#00A65120;color:var(--green);"><i class="fa-solid fa-box"></i></div>
                         <div class="kpi-content">
+                            <div class="kpi-title">Aguardando Coleta</div>
                             <div class="kpi-indicators"><div class="kpi-indicator"><span class="kpi-value" id="kpiAguardandoColeta">0</span><span class="kpi-label">PEDIDOS</span></div></div>
                         </div>
                     </div>
@@ -370,17 +370,10 @@
                 <div class="card">
                     <div class="card-header"><h3>📅 Histórico Diário</h3><div><input type="date" id="historicoData" style="padding:6px;"><button class="btn btn-sm btn-primary" id="btnCarregarHistorico">Carregar</button></div></div>
                     <div id="historicoResumo" style="margin-bottom:10px;"></div>
-                    <div class="table-wrapper" style="margin-bottom:16px;">
+                    <div class="table-wrapper">
                         <table>
                             <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos</th><th>Peças</th><th>Meta</th><th>Atingimento</th><th>Meta Batida?</th></tr></thead>
                             <tbody id="tbodyHistorico"></tbody>
-                        </table>
-                    </div>
-                    <h4 style="margin-top:8px;">🔍 Detalhamento de Pedidos Finalizados na Data</h4>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead><tr><th>Pedido</th><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Peças</th><th>Finalizado em</th></tr></thead>
-                            <tbody id="tbodyHistoricoDetalhe"></tbody>
                         </table>
                     </div>
                 </div>
@@ -422,7 +415,7 @@
 
 <script>
     (function () {
-        const STORAGE_KEY = 'acp_v4_data';
+        const STORAGE_KEY = 'acp_v3_data';
         let appData = loadData();
         let currentUser = null;
         let currentTab = 'lancamento';
@@ -747,13 +740,14 @@
             if (confirm('Limpar TODOS os pedidos?')) { appData.pedidos = []; saveData(); fullRender(); }
         };
 
-        // ---------- FINALIZAR PEDIDO: agora envia para "aguardando_coleta" (aparece em Produtividade) ----------
+        // *** MODIFICAÇÃO PRINCIPAL: finalizar pedido agora coloca direto em "aguardando_coleta" ***
         function finalizarPedido(pedidoObj) {
             if (!pedidoObj || pedidoObj.status !== 'em_andamento') return false;
             const pedidoNumero = pedidoObj.pedido;
             const outro = appData.pedidos.find(p => p.pedido === pedidoNumero && p.id !== pedidoObj.id);
             if (outro) return false;
-            pedidoObj.status = 'aguardando_coleta';               // <-- ALTERADO: vai para Produtividade
+            // Agora finaliza diretamente para "Aguardando Coleta" (status aguardando_coleta)
+            pedidoObj.status = 'aguardando_coleta';
             pedidoObj.dataFim = nowISO();
             pedidoObj.quantidadeColetada = pedidoObj.quantidadeTotalPedido;
             pedidoObj.tempoTotalSegundos = Math.floor((new Date(pedidoObj.dataFim) - new Date(pedidoObj.dataInicio)) / 1000);
@@ -784,7 +778,7 @@
                 if (!confirm(`O colaborador ${colab} já possui ${pedidosAtivos.length} pedido(s) em andamento. Deseja finalizar os pedidos atuais e iniciar os novos?`)) return;
                 let finalizados = 0;
                 pedidosAtivos.forEach(p => { if (finalizarPedido(p)) finalizados++; });
-                if (finalizados > 0) showToast(`${finalizados} pedido(s) finalizado(s) e movido(s) para Aguardando Status PDV.`);
+                if (finalizados > 0) showToast(`${finalizados} pedido(s) finalizado(s) e movido(s) para Aguardando Coleta.`);
             }
 
             let iniciados = 0, erros = 0;
@@ -890,10 +884,10 @@
             return String(str).replace(/[&<>]/g, function (m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; });
         }
 
-        // ========== DASHBOARD ==========
+        // ========== DASHBOARD (com filtro de data no Aguardando Coleta) ==========
         function renderDashboard() {
             const todos = appData.pedidos;
-            const dataFiltro = document.getElementById('dashDataFiltro').value;
+            const dataFiltro = document.getElementById('dashDataFiltro').value; // YYYY-MM-DD
 
             const pedidosEmAberto = todos.filter(p => p.status === 'em_aberto');
             const mapAberto = new Map();
@@ -911,6 +905,7 @@
             emAndamento.forEach(p => { if (!mapAndamento.has(p.pedido)) mapAndamento.set(p.pedido, { pedido: p.pedido }); });
             document.getElementById('kpiEmAndamento').innerText = mapAndamento.size;
 
+            // Aguardando Coleta com filtro de data
             let aguardandoColeta = todos.filter(p => p.status === 'aguardando_coleta');
             if (dataFiltro) {
                 aguardandoColeta = aguardandoColeta.filter(p => p.dataFim && p.dataFim.startsWith(dataFiltro));
@@ -1051,6 +1046,7 @@
             renderDashboard();
         }));
 
+        // Ao alterar a data, re-renderiza o dashboard para atualizar o KPI de Aguardando Coleta
         document.getElementById('dashDataFiltro').addEventListener('change', function () {
             renderDashboard();
         });
@@ -1090,12 +1086,9 @@
             }).join('') : '<tr class="empty-state"><td colspan="8">Nenhum dado no período.</td></tr>';
         }
 
-        // ---------- HISTÓRICO: agora mostra também a lista detalhada de pedidos ----------
         async function carregarHistorico() {
             const data = document.getElementById('historicoData').value;
             if (!data) return showToast('Selecione uma data', true);
-
-            // resumo por colaborador
             const rows = getProdutividadeData(data, '', '', '');
             const metaSep = metas.separador, metaEmp = metas.empilhadeirista;
             let totalPecas = 0, totalPedidos = 0, bateuMeta = 0, totalColab = 0;
@@ -1113,22 +1106,6 @@
                 const bateu = atual >= meta;
                 return `<tr><td>${escapeHtml(r.colaborador)}</td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${meta}</td><td>${Math.round((atual/meta)*100)}%</td><td>${bateu ? '✅ Sim' : '❌ Não'}</td></tr>`;
             }).join('') : '<tr><td colspan="8">Nenhum registro</td></tr>';
-
-            // detalhamento de cada pedido finalizado na data
-            const pedidosDetalhe = appData.pedidos.filter(p => p.status === 'aguardando_coleta' && p.dataFim && p.dataFim.startsWith(data));
-            const tbodyDet = document.getElementById('tbodyHistoricoDetalhe');
-            if (pedidosDetalhe.length === 0) {
-                tbodyDet.innerHTML = '<tr class="empty-state"><td colspan="6">Nenhum pedido finalizado nesta data.</td></tr>';
-            } else {
-                tbodyDet.innerHTML = pedidosDetalhe.map(p => `<tr>
-                    <td><strong>${escapeHtml(p.pedido)}</strong></td>
-                    <td>${escapeHtml(p.colaborador || '-')}</td>
-                    <td>${escapeHtml(p.tipoColaborador || '-')}</td>
-                    <td>${escapeHtml(p.turno || '-')}</td>
-                    <td>${p.quantidadeTotalPedido || 0}</td>
-                    <td>${formatDateTime(p.dataFim)}</td>
-                </tr>`).join('');
-            }
         }
 
         function exportToExcel(dataRows, headers, filename) {
@@ -1291,7 +1268,7 @@
             const user = appData.users.find(x => x.username === u && x.password === p);
             if (user) {
                 currentUser = user;
-                sessionStorage.setItem('acp_session_v4', JSON.stringify({username: u, password: p}));
+                sessionStorage.setItem('acp_session_v3', JSON.stringify({username: u, password: p}));
                 document.getElementById('loginError').classList.remove('show');
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('appWrapper').classList.add('active');
@@ -1317,7 +1294,7 @@
             }, 500);
         }
 
-        const sess = sessionStorage.getItem('acp_session_v4');
+        const sess = sessionStorage.getItem('acp_session_v3');
         if (sess) {
             try {
                 const parsed = JSON.parse(sess);
