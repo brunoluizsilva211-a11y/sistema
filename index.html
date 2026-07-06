@@ -160,6 +160,7 @@
         .filtro-group input, .filtro-group select { padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 4px; font-size: 12px; width: 100px; }
         .filtro-group input[type="text"] { width: 150px; }
         .progress-text { margin-left: 10px; font-size: 13px; color: var(--gray-700); }
+        .faltante-badge { color: var(--red); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -345,28 +346,74 @@
                 </div>
             </div>
 
-            <!-- PRODUTIVIDADE + HISTÓRICO -->
+            <!-- PRODUTIVIDADE (REMODELADA) -->
             <div class="tab-content" id="tabProdutividade">
+                <!-- NOVOS FILTROS -->
                 <div class="filter-bar">
                     <div class="filter-group"><label>Data</label><input type="date" id="prodDataFiltro"></div>
                     <div class="filter-group"><label>Colaborador</label><input type="text" id="prodColabFiltro" placeholder="Nome"></div>
-                    <div class="filter-group"><label>Turno</label><select id="prodTurnoFiltro"><option value="">Todos</option><option>Turno 1</option><option>Turno 2</option><option>ADM</option></select></div>
                     <div class="filter-group"><label>Tipo</label><select id="prodTipoFiltro"><option value="">Todos</option><option>Separador de Chão</option><option>Empilhadeirista</option></select></div>
+                    <div class="filter-group"><label>Turno</label><select id="prodTurnoFiltro"><option value="">Todos</option><option>Turno 1</option><option>Turno 2</option><option>ADM</option></select></div>
+                    <div class="filter-group"><label>Status</label><select id="prodStatusFiltro"><option value="">Todos</option><option value="atingiu">Atingiu a meta</option><option value="nao_atingiu">Não atingiu</option></select></div>
                     <button class="btn btn-sm btn-outline" id="limparFiltrosProd">Limpar</button>
                     <div style="margin-left:auto; gap:8px; display:flex;">
                         <button class="btn btn-sm btn-primary" id="exportProdExcel"><i class="fa-regular fa-file-excel"></i> Excel</button>
                         <button class="btn btn-sm btn-primary" id="exportProdPDF"><i class="fa-regular fa-file-pdf"></i> PDF</button>
                     </div>
                 </div>
+
+                <!-- DASHBOARD RESUMO DE METAS -->
+                <div class="kpi-grid" id="prodMetaKpis">
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background:#00A65120;color:var(--green);"><i class="fa-solid fa-check-circle"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Atingiram a meta</div>
+                            <div class="kpi-indicators">
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiAtingiramMeta">0</span><span class="kpi-label">COLABORADORES</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background:#ED1B2420;color:var(--red);"><i class="fa-solid fa-xmark-circle"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Não atingiram</div>
+                            <div class="kpi-indicators">
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiNaoAtingiram">0</span><span class="kpi-label">COLABORADORES</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background:#3B82F620;color:var(--blue);"><i class="fa-solid fa-cubes"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Total Peças</div>
+                            <div class="kpi-indicators">
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiTotalPecas">0</span><span class="kpi-label">PEÇAS</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-icon" style="background:#FF660020;color:var(--orange);"><i class="fa-solid fa-boxes"></i></div>
+                        <div class="kpi-content">
+                            <div class="kpi-title">Total Pedidos</div>
+                            <div class="kpi-indicators">
+                                <div class="kpi-indicator"><span class="kpi-value" id="kpiTotalPedidos">0</span><span class="kpi-label">PEDIDOS</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TABELA DE PRODUTIVIDADE COM COLUNA FALTANTE -->
                 <div class="card">
                     <div class="card-header"><h3>📊 Produtividade Diária</h3><span id="prodMetaInfo" style="font-size:12px;color:var(--gray-500);"></span></div>
                     <div class="table-wrapper">
                         <table>
-                            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos</th><th>Peças</th><th>Meta</th><th>Atingimento</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Colaborador</th><th>Tipo</th><th>Turno</th><th>Pedidos</th><th>Peças</th><th>Meta</th><th>Atingimento</th><th>Faltante</th><th>Status</th></tr></thead>
                             <tbody id="tbodyProdutividade"></tbody>
                         </table>
                     </div>
                 </div>
+
+                <!-- HISTÓRICO (mantido) -->
                 <div class="card">
                     <div class="card-header"><h3>📅 Histórico Diário</h3><div><input type="date" id="historicoData" style="padding:6px;"><button class="btn btn-sm btn-primary" id="btnCarregarHistorico">Carregar</button></div></div>
                     <div id="historicoResumo" style="margin-bottom:10px;"></div>
@@ -740,13 +787,11 @@
             if (confirm('Limpar TODOS os pedidos?')) { appData.pedidos = []; saveData(); fullRender(); }
         };
 
-        // *** MODIFICAÇÃO PRINCIPAL: finalizar pedido agora coloca direto em "aguardando_coleta" ***
         function finalizarPedido(pedidoObj) {
             if (!pedidoObj || pedidoObj.status !== 'em_andamento') return false;
             const pedidoNumero = pedidoObj.pedido;
             const outro = appData.pedidos.find(p => p.pedido === pedidoNumero && p.id !== pedidoObj.id);
             if (outro) return false;
-            // Agora finaliza diretamente para "Aguardando Coleta" (status aguardando_coleta)
             pedidoObj.status = 'aguardando_coleta';
             pedidoObj.dataFim = nowISO();
             pedidoObj.quantidadeColetada = pedidoObj.quantidadeTotalPedido;
@@ -887,7 +932,7 @@
         // ========== DASHBOARD (com filtro de data no Aguardando Coleta) ==========
         function renderDashboard() {
             const todos = appData.pedidos;
-            const dataFiltro = document.getElementById('dashDataFiltro').value; // YYYY-MM-DD
+            const dataFiltro = document.getElementById('dashDataFiltro').value;
 
             const pedidosEmAberto = todos.filter(p => p.status === 'em_aberto');
             const mapAberto = new Map();
@@ -905,7 +950,6 @@
             emAndamento.forEach(p => { if (!mapAndamento.has(p.pedido)) mapAndamento.set(p.pedido, { pedido: p.pedido }); });
             document.getElementById('kpiEmAndamento').innerText = mapAndamento.size;
 
-            // Aguardando Coleta com filtro de data
             let aguardandoColeta = todos.filter(p => p.status === 'aguardando_coleta');
             if (dataFiltro) {
                 aguardandoColeta = aguardandoColeta.filter(p => p.dataFim && p.dataFim.startsWith(dataFiltro));
@@ -1046,13 +1090,12 @@
             renderDashboard();
         }));
 
-        // Ao alterar a data, re-renderiza o dashboard para atualizar o KPI de Aguardando Coleta
         document.getElementById('dashDataFiltro').addEventListener('change', function () {
             renderDashboard();
         });
 
-        // ========== PRODUTIVIDADE ==========
-        function getProdutividadeData(dataFiltro = null, colabFiltro = '', turnoFiltro = '', tipoFiltro = '') {
+        // ========== PRODUTIVIDADE (REMODELADA) ==========
+        function getProdutividadeData(dataFiltro = null, colabFiltro = '', turnoFiltro = '', tipoFiltro = '', statusFiltro = '') {
             let pedidos = appData.pedidos.filter(p => p.status === 'aguardando_coleta' && p.dataFim);
             if (dataFiltro) pedidos = pedidos.filter(p => p.dataFim.split('T')[0] === dataFiltro);
             const mapa = new Map();
@@ -1066,45 +1109,79 @@
                 item.pedidos++;
                 item.pecas += p.quantidadeTotalPedido || 0;
             });
-            return Array.from(mapa.values());
+            let resultado = Array.from(mapa.values()).map(r => {
+                const meta = r.tipo === 'Empilhadeirista' ? metas.empilhadeirista : metas.separador;
+                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
+                const pct = Math.round((atual / meta) * 100);
+                const faltante = Math.max(0, meta - atual);
+                return { ...r, meta, atual, pct, faltante };
+            });
+            if (statusFiltro === 'atingiu') resultado = resultado.filter(r => r.pct >= 100);
+            if (statusFiltro === 'nao_atingiu') resultado = resultado.filter(r => r.pct < 100);
+            return resultado;
         }
 
         function renderProdutividade() {
             const data = document.getElementById('prodDataFiltro').value;
-            const colab = document.getElementById('prodColabFiltro').value;
+            const colab = document.getElementById('prodColabFiltro').value.trim();
             const turno = document.getElementById('prodTurnoFiltro').value;
             const tipo = document.getElementById('prodTipoFiltro').value;
-            const rows = getProdutividadeData(data, colab, turno, tipo);
+            const statusFiltro = document.getElementById('prodStatusFiltro').value;
+            const rows = getProdutividadeData(data, colab, turno, tipo, statusFiltro);
+
+            // Atualizar dashboard resumo
+            let atingiram = 0, naoAtingiram = 0, totalPecas = 0, totalPedidos = 0;
+            rows.forEach(r => {
+                if (r.pct >= 100) atingiram++; else naoAtingiram++;
+                totalPecas += r.pecas;
+                totalPedidos += r.pedidos;
+            });
+            document.getElementById('kpiAtingiramMeta').innerText = atingiram;
+            document.getElementById('kpiNaoAtingiram').innerText = naoAtingiram;
+            document.getElementById('kpiTotalPecas').innerText = totalPecas;
+            document.getElementById('kpiTotalPedidos').innerText = totalPedidos;
+
             const metaSep = metas.separador, metaEmp = metas.empilhadeirista;
             document.getElementById('prodMetaInfo').innerHTML = `Metas: Separador ${metaSep} peças | Empilhadeirista ${metaEmp} pedidos`;
             document.getElementById('tbodyProdutividade').innerHTML = rows.length ? rows.map(r => {
-                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
-                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
-                const pct = Math.round((atual / meta) * 100);
-                const status = pct >= 100 ? '<span class="badge-success">Meta atingida</span>' : '<span class="badge-danger">Abaixo da meta</span>';
-                return `<tr><td><strong>${escapeHtml(r.colaborador)}</strong></td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${meta}</td><td>${pct}%</td><td>${status}</td></tr>`;
-            }).join('') : '<tr class="empty-state"><td colspan="8">Nenhum dado no período.</td></tr>';
+                const statusHtml = r.pct >= 100 ? '<span class="badge badge-success">Meta atingida</span>' : '<span class="badge badge-danger">Abaixo da meta</span>';
+                const faltanteHtml = r.faltante > 0 ? `<span class="faltante-badge">${r.faltante}</span>` : '—';
+                return `<tr>
+                    <td><strong>${escapeHtml(r.colaborador)}</strong></td>
+                    <td>${escapeHtml(r.tipo)}</td>
+                    <td>${escapeHtml(r.turno)}</td>
+                    <td>${r.pedidos}</td>
+                    <td>${r.pecas}</td>
+                    <td>${r.meta}</td>
+                    <td>${r.pct}%</td>
+                    <td>${faltanteHtml}</td>
+                    <td>${statusHtml}</td>
+                </tr>`;
+            }).join('') : '<tr class="empty-state"><td colspan="9">Nenhum dado no período.</td></tr>';
         }
+
+        // Listeners para filtros de produtividade
+        document.getElementById('prodDataFiltro').addEventListener('change', renderProdutividade);
+        document.getElementById('prodColabFiltro').addEventListener('input', renderProdutividade);
+        document.getElementById('prodTurnoFiltro').addEventListener('change', renderProdutividade);
+        document.getElementById('prodTipoFiltro').addEventListener('change', renderProdutividade);
+        document.getElementById('prodStatusFiltro').addEventListener('change', renderProdutividade);
 
         async function carregarHistorico() {
             const data = document.getElementById('historicoData').value;
             if (!data) return showToast('Selecione uma data', true);
-            const rows = getProdutividadeData(data, '', '', '');
+            const rows = getProdutividadeData(data, '', '', '', '');
             const metaSep = metas.separador, metaEmp = metas.empilhadeirista;
             let totalPecas = 0, totalPedidos = 0, bateuMeta = 0, totalColab = 0;
             rows.forEach(r => {
-                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
-                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
                 totalPecas += r.pecas; totalPedidos += r.pedidos;
-                if (atual >= meta) bateuMeta++;
+                if (r.pct >= 100) bateuMeta++;
                 totalColab++;
             });
             document.getElementById('historicoResumo').innerHTML = `<div style="background:#f0f0f0; padding:10px; border-radius:8px;"><strong>📅 ${data}</strong> | Total Peças: ${totalPecas} | Total Pedidos: ${totalPedidos} | Colaboradores: ${totalColab} | Bateram meta: ${bateuMeta}</div>`;
             document.getElementById('tbodyHistorico').innerHTML = rows.length ? rows.map(r => {
-                const meta = r.tipo === 'Empilhadeirista' ? metaEmp : metaSep;
-                const atual = r.tipo === 'Empilhadeirista' ? r.pedidos : r.pecas;
-                const bateu = atual >= meta;
-                return `<tr><td>${escapeHtml(r.colaborador)}</td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${meta}</td><td>${Math.round((atual/meta)*100)}%</td><td>${bateu ? '✅ Sim' : '❌ Não'}</td></tr>`;
+                const bateu = r.pct >= 100;
+                return `<tr><td>${escapeHtml(r.colaborador)}</td><td>${escapeHtml(r.tipo)}</td><td>${escapeHtml(r.turno)}</td><td>${r.pedidos}</td><td>${r.pecas}</td><td>${r.meta}</td><td>${r.pct}%</td><td>${bateu ? '✅ Sim' : '❌ Não'}</td></tr>`;
             }).join('') : '<tr><td colspan="8">Nenhum registro</td></tr>';
         }
 
@@ -1124,7 +1201,7 @@
             exportToExcel(rows, headers, `dashboard_${dashboardFiltroAtivo}`);
         };
         document.getElementById('exportProdExcel').onclick = () => {
-            const headers = ['Colaborador', 'Tipo', 'Turno', 'Pedidos', 'Peças', 'Meta', 'Atingimento', 'Status'];
+            const headers = ['Colaborador', 'Tipo', 'Turno', 'Pedidos', 'Peças', 'Meta', 'Atingimento', 'Faltante', 'Status'];
             const rows = Array.from(document.getElementById('tbodyProdutividade').querySelectorAll('tr')).map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText)).filter(r => r.length && !r[0].includes('Nenhum'));
             exportToExcel(rows, headers, `produtividade_${new Date().toISOString().slice(0,10)}`);
         };
@@ -1140,6 +1217,7 @@
             document.getElementById('prodColabFiltro').value = '';
             document.getElementById('prodTurnoFiltro').value = '';
             document.getElementById('prodTipoFiltro').value = '';
+            document.getElementById('prodStatusFiltro').value = '';
             renderProdutividade();
         };
         document.getElementById('btnCarregarHistorico').onclick = carregarHistorico;
